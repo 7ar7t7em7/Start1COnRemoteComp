@@ -5,7 +5,7 @@ import java.io.IOException;
 public class Main {
 
     public static void main(String[] args) {
-        //  ЗАМЕНИТЕ НА СВОИ ДАННЫЕ
+        // Р—РђРњР•РќРРўР• РќРђ РЎР’РћР Р”РђРќРќР«Р•
         String remoteHost = "192.168.1.100";
         String user = "Administrator";
         String pass = "SuperSecretPass123";
@@ -13,11 +13,11 @@ public class Main {
         WinRSExecutor executor = new WinRSExecutor(remoteHost, user, pass, 30);
 
         try {
-            System.out.println("Выполняем команду...");
+            System.out.println("Р’С‹РїРѕР»РЅСЏРµРј РєРѕРјР°РЅРґСѓ...");
             String result = executor.execute("ipconfig /all");
             System.out.println(result);
         } catch (IOException | InterruptedException e) {
-            System.err.println("Ошибка выполнения: " + e.getMessage());
+            System.err.println("РћС€РёР±РєР° РІС‹РїРѕР»РЅРµРЅРёСЏ: " + e.getMessage());
             e.printStackTrace();
         }
     }

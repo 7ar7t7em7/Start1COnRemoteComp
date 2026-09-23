@@ -10,8 +10,8 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * Класс для выполнения команд на удаленном Windows-компьютере через winrs.exe.
- * Подходит для старых систем, где WinRM 1.0 (например, Windows Server 2003).
+ * РљР»Р°СЃСЃ РґР»СЏ РІС‹РїРѕР»РЅРµРЅРёСЏ РєРѕРјР°РЅРґ РЅР° СѓРґР°Р»РµРЅРЅРѕРј Windows-РєРѕРјРїСЊСЋС‚РµСЂРµ С‡РµСЂРµР· winrs.exe.
+ * РџРѕРґС…РѕРґРёС‚ РґР»СЏ СЃС‚Р°СЂС‹С… СЃРёСЃС‚РµРј, РіРґРµ WinRM 1.0 (РЅР°РїСЂРёРјРµСЂ, Windows Server 2003).
  */
 public class WinRSExecutor {
 
@@ -21,10 +21,10 @@ public class WinRSExecutor {
     private final long timeoutSeconds;
 
     /**
-     * @param host           IP-адрес или имя удаленного ПК
-     * @param username       Имя пользователя (для домена: "DOMAIN\\user")
-     * @param password       Пароль
-     * @param timeoutSeconds Таймаут ожидания выполнения команды
+     * @param host           IP-Р°РґСЂРµСЃ РёР»Рё РёРјСЏ СѓРґР°Р»РµРЅРЅРѕРіРѕ РџРљ
+     * @param username       РРјСЏ РїРѕР»СЊР·РѕРІР°С‚РµР»СЏ (РґР»СЏ РґРѕРјРµРЅР°: "DOMAIN\\user")
+     * @param password       РџР°СЂРѕР»СЊ
+     * @param timeoutSeconds РўР°Р№РјР°СѓС‚ РѕР¶РёРґР°РЅРёСЏ РІС‹РїРѕР»РЅРµРЅРёСЏ РєРѕРјР°РЅРґС‹
      */
     public WinRSExecutor(String host, String username, String password, long timeoutSeconds) {
         this.host = host;
@@ -34,10 +34,10 @@ public class WinRSExecutor {
     }
 
     /**
-     * Выполняет команду на удаленном компьютере через winrs.
+     * Р’С‹РїРѕР»РЅСЏРµС‚ РєРѕРјР°РЅРґСѓ РЅР° СѓРґР°Р»РµРЅРЅРѕРј РєРѕРјРїСЊСЋС‚РµСЂРµ С‡РµСЂРµР· winrs.
      *
-     * @param command Команда для выполнения (например, "dir C:\\" или "ipconfig /all")
-     * @return Результат выполнения (stdout + stderr)
+     * @param command РљРѕРјР°РЅРґР° РґР»СЏ РІС‹РїРѕР»РЅРµРЅРёСЏ (РЅР°РїСЂРёРјРµСЂ, "dir C:\\" РёР»Рё "ipconfig /all")
+     * @return Р РµР·СѓР»СЊС‚Р°С‚ РІС‹РїРѕР»РЅРµРЅРёСЏ (stdout + stderr)
      */
     public String execute(String command) throws IOException, InterruptedException {
         List<String> cmdList = new ArrayList<>();
@@ -47,14 +47,14 @@ public class WinRSExecutor {
         cmdList.add("-p:" + password);
         cmdList.add(command);
 
-        // Важно: передаем аргументы раздельно, а НЕ одной строкой.
-        // Это распространенная ошибка при использовании ProcessBuilder[citation:3].
+        // Р’Р°Р¶РЅРѕ: РїРµСЂРµРґР°РµРј Р°СЂРіСѓРјРµРЅС‚С‹ СЂР°Р·РґРµР»СЊРЅРѕ, Р° РќР• РѕРґРЅРѕР№ СЃС‚СЂРѕРєРѕР№.
+        // Р­С‚Рѕ СЂР°СЃРїСЂРѕСЃС‚СЂР°РЅРµРЅРЅР°СЏ РѕС€РёР±РєР° РїСЂРё РёСЃРїРѕР»СЊР·РѕРІР°РЅРёРё ProcessBuilder[citation:3].
         ProcessBuilder pb = new ProcessBuilder(cmdList);
-        pb.redirectErrorStream(true); // Объединяем stdout и stderr
+        pb.redirectErrorStream(true); // РћР±СЉРµРґРёРЅСЏРµРј stdout Рё stderr
 
         Process process = pb.start();
 
-        // Читаем вывод процесса
+        // Р§РёС‚Р°РµРј РІС‹РІРѕРґ РїСЂРѕС†РµСЃСЃР°
         StringBuilder output = new StringBuilder();
         try (BufferedReader reader = new BufferedReader(
                 new InputStreamReader(process.getInputStream(), Charset.defaultCharset()))) {
@@ -64,22 +64,22 @@ public class WinRSExecutor {
             }
         }
 
-        //  Ждем завершения процесса с таймаутом
+        //  Р–РґРµРј Р·Р°РІРµСЂС€РµРЅРёСЏ РїСЂРѕС†РµСЃСЃР° СЃ С‚Р°Р№РјР°СѓС‚РѕРј
         boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
         if (!finished) {
             process.destroyForcibly();
-            throw new IOException("Превышен таймаут выполнения команды (" + timeoutSeconds + " сек)");
+            throw new IOException("РџСЂРµРІС‹С€РµРЅ С‚Р°Р№РјР°СѓС‚ РІС‹РїРѕР»РЅРµРЅРёСЏ РєРѕРјР°РЅРґС‹ (" + timeoutSeconds + " СЃРµРє)");
         }
 
         int exitCode = process.exitValue();
         if (exitCode != 0) {
             output.append(System.lineSeparator())
-                  .append("Процесс завершился с кодом: ").append(exitCode);
+                  .append("РџСЂРѕС†РµСЃСЃ Р·Р°РІРµСЂС€РёР»СЃСЏ СЃ РєРѕРґРѕРј: ").append(exitCode);
         }
 
         return output.toString();
     }
 
-    // Пример использования
+    // РџСЂРёРјРµСЂ РёСЃРїРѕР»СЊР·РѕРІР°РЅРёСЏ
 
 }
