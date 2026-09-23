@@ -5,7 +5,7 @@ import java.io.IOException;
 public class Main {
 
     public static void main(String[] args) {
-        // гюлемхре мю ябнх дюммше
+        //  гюлемхре мю ябнх дюммше
         String remoteHost = "192.168.1.100";
         String user = "Administrator";
         String pass = "SuperSecretPass123";

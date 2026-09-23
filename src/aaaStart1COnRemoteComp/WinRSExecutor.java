@@ -64,7 +64,7 @@ public class WinRSExecutor {
             }
         }
 
-        // ∆дем завершени€ процесса с таймаутом
+        //  ∆дем завершени€ процесса с таймаутом
         boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
         if (!finished) {
             process.destroyForcibly();
