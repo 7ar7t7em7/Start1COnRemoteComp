@@ -2,6 +2,7 @@ package aaaStart1COnRemoteComp;
 
 import java.io.BufferedReader;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
@@ -63,7 +64,7 @@ public class WinRSExecutor {
             }
         }
 
-        //  Ждем завершения процесса с  таймаутом
+        // Ждем завершения процесса с таймаутом
         boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
         if (!finished) {
             process.destroyForcibly();
@@ -78,4 +79,7 @@ public class WinRSExecutor {
 
         return output.toString();
     }
+
+    // Пример использования
+
 }
