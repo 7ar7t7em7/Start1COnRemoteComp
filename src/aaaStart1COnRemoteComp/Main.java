@@ -11,7 +11,7 @@ public class Main {
     public static void main(String[] args) {
         // ===== НАСТРОЙКИ ПОДКЛЮЧЕНИЯ =====
         String host = "10.1.2.171";
-        String user = "svrologin\\admin-db";
+        String user = "svarog\\admin-db";
         String pass = "22@dMIN22";
 
         // ===== ПУТИ =====
@@ -20,11 +20,11 @@ public class Main {
         String remoteShare = "smb://" + host + "/ae$/";
 
         // Путь к bat-файлу и результату НА СЕРВЕРЕ (локальный путь в файловой системе сервера)
-        String remoteBatPath = "C:\\ae\\run_ipconfig.bat";
+        String remoteBatPath = "C:\\ae\\runipconfig.bat";
         String remoteResultFileName = null; // сформируем ниже
 
         // Локальные пути
-        String localBatPath = "C:\\Users\\user\\eclipse-workspace\\aaaStart1COnRemoteComp\\run_ipconfig.bat";
+        String localBatPath = "C:\\Users\\a.dubinskiy\\git\\Start1COnRemoteComp\\run_ipconfig.bat";
         String localResultDir = "D:\\aeLog\\";
 
         // ===== ФОРМИРУЕМ ИМЯ ФАЙЛА С ДАТОЙ/ВРЕМЕНЕМ =====
@@ -50,7 +50,12 @@ public class Main {
             System.out.println("Локальный bat создан: " + localBatPath);
 
             // ===== ШАГ 2: ЗАГРУЖАЕМ BAT НА СЕРВЕР =====
-            transfer.upload(localBatPath, remoteShare, "run_ipconfig.bat");
+            transfer.upload(localBatPath, remoteShare, "runipconfig.bat");
+            if (transfer.exists(remoteShare, "runipconfig.bat")) {
+                System.out.println("Проверка: файл существует на сервере по SMB-пути.");
+            } else {
+                System.err.println("ОШИБКА: файл НЕ найден по SMB-пути!");
+            }
             System.out.println("BAT загружен на сервер.");
 
             // ===== ШАГ 3: ЗАПУСКАЕМ BAT ЧЕРЕЗ WMI =====
@@ -60,7 +65,7 @@ public class Main {
             // ===== ШАГ 4: ЖДЁМ ПОЯВЛЕНИЯ РЕЗУЛЬТАТА НА СЕРВЕРЕ =====
             System.out.println("Ждём появления результата на сервере...");
             int attempts = 0;
-            int maxAttempts = 30; // 30 * 1 сек = 30 сек максимум
+            int maxAttempts = 5; // 30 * 1 сек = 30 сек максимум
             boolean resultReady = false;
 
             while (attempts < maxAttempts) {
