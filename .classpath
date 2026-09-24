@@ -7,5 +7,16 @@
 	</classpathentry>
 	<classpathentry kind="src" path="src"/>
 	<classpathentry kind="lib" path="libs/jcifs-1.3.17.jar"/>
+	<classpathentry kind="lib" path="C:/Program Files/Java/javafx-sdk-25.0.2/lib/javafx.base.jar"/>
+	<classpathentry kind="lib" path="C:/Program Files/Java/javafx-sdk-25.0.2/lib/javafx.controls.jar"/>
+	<classpathentry kind="lib" path="C:/Program Files/Java/javafx-sdk-25.0.2/lib/javafx.fxml.jar"/>
+	<classpathentry kind="lib" path="C:/Program Files/Java/javafx-sdk-25.0.2/lib/javafx.graphics.jar"/>
+	<classpathentry kind="lib" path="C:/Program Files/Java/javafx-sdk-25.0.2/lib/javafx.media.jar"/>
+	<classpathentry kind="lib" path="C:/Program Files/Java/javafx-sdk-25.0.2/lib/javafx.swing.jar"/>
+	<classpathentry kind="lib" path="C:/Program Files/Java/javafx-sdk-25.0.2/lib/javafx.web.jar"/>
+	<classpathentry kind="lib" path="C:/Program Files/Java/javafx-sdk-25.0.2/lib/javafx-swt.jar"/>
+	<classpathentry kind="lib" path="C:/Program Files/Java/javafx-sdk-25.0.2/lib/jdk.jsobject.jar"/>
+	<classpathentry kind="lib" path="C:/Program Files/Java/javafx-sdk-25.0.2/lib/jfx.incubator.input.jar"/>
+	<classpathentry kind="lib" path="C:/Program Files/Java/javafx-sdk-25.0.2/lib/jfx.incubator.richtext.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
