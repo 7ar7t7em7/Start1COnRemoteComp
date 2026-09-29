@@ -6,6 +6,7 @@
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.HBox?>
 
+<<<<<<< HEAD
 <BorderPane xmlns="http://javafx.com/javafx/25" xmlns:fx="http://javafx.com/fxml/1" fx:controller="aaaStart1COnRemoteComp.MainLayoutController">
 
     <center>
@@ -24,3 +25,26 @@
     </bottom>
 
 </BorderPane>
+=======
+<BorderPane xmlns="http://javafx.com/javafx"
+            xmlns:fx="http://javafx.com/fxml"
+            fx:controller="aaaStart1COnRemoteComp.MainController">
+
+    <center>
+        <ListView fx:id="listView" />
+    </center>
+
+    <bottom>
+        <HBox spacing="10" alignment="CENTER_LEFT">
+            <padding>
+                <Insets top="10" right="10" bottom="10" left="10"/>
+            </padding>
+            <Button fx:id="addButton" text="Добавить" onAction="#onAdd"/>
+            <Button fx:id="editButton" text="Редактировать" onAction="#onEdit"/>
+            <Button fx:id="deleteButton" text="Удалить" onAction="#onDelete"/>
+            <Button fx:id="readDbButton" text="Прочитать БД" onAction="#onReadDatabase"/>
+        </HBox>
+    </bottom>
+
+</BorderPane>
+>>>>>>> branch 'master' of https://github.com/7ar7t7em7/Start1COnRemoteComp.git
