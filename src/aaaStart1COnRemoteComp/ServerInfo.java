@@ -4,6 +4,12 @@ package aaaStart1COnRemoteComp;
  * Описывает удаленный сервер, на котором планируется запуск 1С 7.7.
  */
 public class ServerInfo {
+	
+	/** Признак/код базы данных (DBSIGN из _1SDBSET) */
+	private String dbSign;
+	
+	/** Краткое наименование сервера (отображается в списке) */
+	private String name;
 
     /** Имя компьютера в сети (например, "SRV-1C-01") */
     private String computerName;
@@ -29,18 +35,35 @@ public class ServerInfo {
     public ServerInfo() {
     }
 
-    /** Полный конструктор */
-    public ServerInfo(String computerName, String ip, String program1CPath,
-                      String databasePath, String databaseName, boolean central) {
-        this.computerName = computerName;
-        this.ip = ip;
-        this.program1CPath = program1CPath;
-        this.databasePath = databasePath;
-        this.databaseName = databaseName;
-        this.central = central;
-    }
+    public ServerInfo(String name, String computerName, String ip, String program1CPath,
+            String databasePath, String databaseName, String dbSign, boolean central) {
+this.name = name;
+this.computerName = computerName;
+this.ip = ip;
+this.program1CPath = program1CPath;
+this.databasePath = databasePath;
+this.databaseName = databaseName;
+this.dbSign = dbSign;
+this.central = central;
+}
 
     // ===== Геттеры и сеттеры =====
+    
+    public String getDbSign() {
+        return dbSign;
+    }
+
+    public void setDbSign(String dbSign) {
+        this.dbSign = dbSign;
+    }
+    
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
 
     public String getComputerName() {
         return computerName;
@@ -108,11 +131,13 @@ public class ServerInfo {
     @Override
     public String toString() {
         return "ServerInfo{" +
-                "computerName='" + computerName + '\'' +
+                "name='" + name + '\'' +
+                ", computerName='" + computerName + '\'' +
                 ", ip='" + ip + '\'' +
                 ", program1CPath='" + program1CPath + '\'' +
                 ", databasePath='" + databasePath + '\'' +
                 ", databaseName='" + databaseName + '\'' +
+                ", dbSign='" + dbSign + '\'' +
                 ", central=" + central +
                 '}';
     }

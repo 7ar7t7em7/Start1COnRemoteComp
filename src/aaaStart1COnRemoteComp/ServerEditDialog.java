@@ -17,6 +17,8 @@ public class ServerEditDialog {
     private boolean okClicked = false;
 
     // Поля формы
+    private TextField dbSignField;
+    private TextField nameField;
     private TextField computerNameField;
     private TextField ipField;
     private TextField program1CPathField;
@@ -42,24 +44,30 @@ public class ServerEditDialog {
         grid.setHgap(10);
         grid.setVgap(8);
 
+        dbSignField = new TextField();
+        nameField = new TextField();
         computerNameField = new TextField();
         ipField = new TextField();
         program1CPathField = new TextField();
         databasePathField = new TextField();
         databaseNameField = new TextField();
         centralCheckBox = new CheckBox("Центральный сервер");
-
-        grid.add(new Label("Имя компьютера:"), 0, 0);
-        grid.add(computerNameField, 1, 0);
-        grid.add(new Label("IP-адрес:"), 0, 1);
-        grid.add(ipField, 1, 1);
-        grid.add(new Label("Путь к 1С 7.7:"), 0, 2);
-        grid.add(program1CPathField, 1, 2);
-        grid.add(new Label("Путь к базе:"), 0, 3);
-        grid.add(databasePathField, 1, 3);
-        grid.add(new Label("Имя БД:"), 0, 4);
-        grid.add(databaseNameField, 1, 4);
-        grid.add(centralCheckBox, 1, 5);
+        
+        grid.add(new Label("Наименование:"), 0, 0);
+        grid.add(nameField, 1, 0);
+        grid.add(new Label("Имя компьютера:"), 0, 1);
+        grid.add(computerNameField, 1, 1);
+        grid.add(new Label("IP-адрес:"), 0, 2);
+        grid.add(ipField, 1, 2);
+        grid.add(new Label("Путь к 1С 7.7:"), 0, 3);
+        grid.add(program1CPathField, 1, 3);
+        grid.add(new Label("Путь к базе:"), 0, 4);
+        grid.add(databasePathField, 1, 4);
+        grid.add(new Label("Имя БД:"), 0, 5);
+        grid.add(databaseNameField, 1, 5);
+        grid.add(new Label("DBSIGN:"), 0, 6);
+        grid.add(dbSignField, 1, 6);
+        grid.add(centralCheckBox, 1, 7);
 
         // ==== Кнопки ====
         Button okButton = new Button("OK");
@@ -77,7 +85,7 @@ public class ServerEditDialog {
         buttons.setPadding(new Insets(10, 10, 10, 10));
 
         javafx.scene.layout.VBox root = new javafx.scene.layout.VBox(grid, buttons);
-        stage.setScene(new Scene(root, 480, 300));
+        stage.setScene(new Scene(root, 480, 380));
 
         if (readOnly) {
             // Запрещаем редактирование
@@ -86,6 +94,7 @@ public class ServerEditDialog {
             program1CPathField.setEditable(false);
             databasePathField.setEditable(false);
             databaseNameField.setEditable(false);
+            dbSignField.setEditable(false);
             centralCheckBox.setDisable(true);
             okButton.setDisable(true);
             cancelButton.setText("Закрыть");
@@ -93,18 +102,28 @@ public class ServerEditDialog {
 
         // Заполняем поля, если объект передан
         if (server != null) {
+        	nameField.setText(server.getName());
             computerNameField.setText(server.getComputerName());
             ipField.setText(server.getIp());
             program1CPathField.setText(server.getProgram1CPath());
             databasePathField.setText(server.getDatabasePath());
             databaseNameField.setText(server.getDatabaseName());
             centralCheckBox.setSelected(server.isCentral());
+            dbSignField.setText(server.getDbSign());
         }
     }
 
     /** Валидация: обязательные поля не должны быть пустыми */
     private boolean isInputValid() {
         String error = "";
+        
+        if (dbSignField.getText() == null || dbSignField.getText().isBlank()) {
+            error += "Не заполнен DBSIGN.\n";
+        }
+        if (nameField.getText() == null || nameField.getText().isBlank()) {
+            error += "Не заполнено наименование.\n";
+        }
+        
         if (computerNameField.getText() == null || computerNameField.getText().isBlank()) {
             error += "Не заполнено имя компьютера.\n";
         }
@@ -124,11 +143,13 @@ public class ServerEditDialog {
 
     /** Переносит данные из полей в объект ServerInfo */
     public void applyToServer(ServerInfo s) {
+    	s.setName(nameField.getText());
         s.setComputerName(computerNameField.getText());
         s.setIp(ipField.getText());
         s.setProgram1CPath(program1CPathField.getText());
         s.setDatabasePath(databasePathField.getText());
         s.setDatabaseName(databaseNameField.getText());
+        s.setDbSign(dbSignField.getText());
         s.setCentral(centralCheckBox.isSelected());
     }
 

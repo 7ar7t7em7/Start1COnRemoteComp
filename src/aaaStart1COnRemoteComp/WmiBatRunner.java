@@ -8,8 +8,8 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 /**
- * ����� ��� ������� BAT-����� �� ��������� Windows-���������� ����� WMI (wmic.exe).
- * �������� ��� Windows Server 2003, ��� ��� WinRM.
+ * Класс для запуска BAT-файла на удаленном Windows-компьютере через WMI (wmic.exe).
+ * Подходит для Windows Server 2003, где нет WinRM.
  */
 public class WmiBatRunner {
 
@@ -26,10 +26,10 @@ public class WmiBatRunner {
     }
 
     /**
-     * ��������� BAT-���� �� ��������� ����������.
+     * Запускает BAT-файл на удаленном компьютере.
      *
-     * @param remoteBatPath ������ ���� � .bat �� ��������� �� (��������, "C:\\temp\\run_me.bat")
-     * @return ����� wmic (ProcessId, ReturnValue)
+     * @param remoteBatPath Полный путь к .bat на удаленном ПК (например, "C:\\temp\\run_me.bat")
+     * @return Вывод wmic (ProcessId, ReturnValue)
      */
     public String runBat(String remoteBatPath) throws IOException, InterruptedException {
         List<String> cmdList = new ArrayList<>();
