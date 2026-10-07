@@ -2,7 +2,7 @@
 
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
-<?import javafx.scene.control.ListView?>
+<?import javafx.scene.control.TreeView?>
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.HBox?>
 
@@ -11,7 +11,7 @@
             fx:controller="aaaStart1COnRemoteComp.MainController">
 
     <center>
-        <ListView fx:id="listView" />
+        <TreeView fx:id="treeView" />
     </center>
 
     <bottom>
@@ -22,7 +22,7 @@
             <Button fx:id="addButton" text="Добавить" onAction="#onAdd"/>
             <Button fx:id="editButton" text="Редактировать" onAction="#onEdit"/>
             <Button fx:id="deleteButton" text="Удалить" onAction="#onDelete"/>
-            <Button fx:id="readDbButton" text="Прочитать БД" onAction="#onReadDatabase"/>
+            <Button fx:id="readDbButton" text="Прочитаь БД" onAction="#onReadDatabase"/>
         </HBox>
     </bottom>
 

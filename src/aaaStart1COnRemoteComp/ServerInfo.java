@@ -5,6 +5,8 @@ package aaaStart1COnRemoteComp;
  */
 public class ServerInfo {
 	
+	private String parentName;
+	
 	/** Признак/код базы данных (DBSIGN из _1SDBSET) */
 	private String dbSign;
 	
@@ -48,6 +50,9 @@ this.central = central;
 }
 
     // ===== Геттеры и сеттеры =====
+    
+    public String getParentName() { return parentName; }
+    public void setParentName(String parentName) { this.parentName = parentName; }
     
     public String getDbSign() {
         return dbSign;
@@ -131,6 +136,7 @@ this.central = central;
     @Override
     public String toString() {
         return "ServerInfo{" +
+        		"parentName='" + parentName + '\'' +
                 "name='" + name + '\'' +
                 ", computerName='" + computerName + '\'' +
                 ", ip='" + ip + '\'' +

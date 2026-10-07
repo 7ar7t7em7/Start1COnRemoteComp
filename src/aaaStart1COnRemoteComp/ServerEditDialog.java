@@ -1,9 +1,13 @@
 package aaaStart1COnRemoteComp;
 
+import java.util.List;
+
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
+import javafx.scene.layout.Priority;
 import javafx.stage.Modality;
 import javafx.stage.Stage;
 
@@ -17,6 +21,7 @@ public class ServerEditDialog {
     private boolean okClicked = false;
 
     // Поля формы
+    private ComboBox<String> parentComboBox;
     private TextField dbSignField;
     private TextField nameField;
     private TextField computerNameField;
@@ -31,7 +36,7 @@ public class ServerEditDialog {
      * @param server      объект для редактирования; null — создаём новый
      * @param readOnly    true — только просмотр (кнопки сохранения нет)
      */
-    public ServerEditDialog(Stage owner, ServerInfo server, boolean readOnly) {
+    public ServerEditDialog(Stage owner, ServerInfo server, boolean readOnly, List<String> possibleParents) {
         this.server = server;
         this.stage = new Stage();
         stage.initOwner(owner);
@@ -44,30 +49,38 @@ public class ServerEditDialog {
         grid.setHgap(10);
         grid.setVgap(8);
 
+     // ==== Растягивание колонок ====
+        ColumnConstraints col0 = new ColumnConstraints();
+        col0.setMinWidth(150);
+        ColumnConstraints col1 = new ColumnConstraints();
+        col1.setHgrow(Priority.ALWAYS);
+        grid.getColumnConstraints().addAll(col0, col1);
+        
         dbSignField = new TextField();
+        dbSignField.setMaxWidth(Double.MAX_VALUE);
         nameField = new TextField();
+        nameField.setMaxWidth(Double.MAX_VALUE);
         computerNameField = new TextField();
+        computerNameField.setMaxWidth(Double.MAX_VALUE);
         ipField = new TextField();
+        ipField.setMaxWidth(Double.MAX_VALUE);
         program1CPathField = new TextField();
+        program1CPathField.setMaxWidth(Double.MAX_VALUE);
         databasePathField = new TextField();
+        databasePathField.setMaxWidth(Double.MAX_VALUE);
         databaseNameField = new TextField();
+        parentComboBox = new ComboBox<>();  
         centralCheckBox = new CheckBox("Центральный сервер");
         
-        grid.add(new Label("Наименование:"), 0, 0);
-        grid.add(nameField, 1, 0);
-        grid.add(new Label("Имя компьютера:"), 0, 1);
-        grid.add(computerNameField, 1, 1);
-        grid.add(new Label("IP-адрес:"), 0, 2);
-        grid.add(ipField, 1, 2);
-        grid.add(new Label("Путь к 1С 7.7:"), 0, 3);
-        grid.add(program1CPathField, 1, 3);
-        grid.add(new Label("Путь к базе:"), 0, 4);
-        grid.add(databasePathField, 1, 4);
-        grid.add(new Label("Имя БД:"), 0, 5);
-        grid.add(databaseNameField, 1, 5);
-        grid.add(new Label("DBSIGN:"), 0, 6);
-        grid.add(dbSignField, 1, 6);
-        grid.add(centralCheckBox, 1, 7);
+        grid.add(new Label("Наименование:"), 0, 0);   grid.add(nameField, 1, 0);
+        grid.add(new Label("Имя компьютера:"), 0, 1); grid.add(computerNameField, 1, 1);
+        grid.add(new Label("IP-адрес:"), 0, 2);       grid.add(ipField, 1, 2);
+        grid.add(new Label("Путь к 1С 7.7:"), 0, 3);  grid.add(program1CPathField, 1, 3);
+        grid.add(new Label("Путь к базе:"), 0, 4);    grid.add(databasePathField, 1, 4);
+        grid.add(new Label("Имя БД:"), 0, 5);         grid.add(databaseNameField, 1, 5);
+        grid.add(new Label("DBSIGN:"), 0, 6);         grid.add(dbSignField, 1, 6);
+        grid.add(new Label("Родитель:"), 0, 7);       grid.add(parentComboBox, 1, 7);
+        grid.add(centralCheckBox, 1, 8);
 
         // ==== Кнопки ====
         Button okButton = new Button("OK");
@@ -98,6 +111,7 @@ public class ServerEditDialog {
             centralCheckBox.setDisable(true);
             okButton.setDisable(true);
             cancelButton.setText("Закрыть");
+            parentComboBox.setDisable(true);
         }
 
         // Заполняем поля, если объект передан
@@ -110,6 +124,7 @@ public class ServerEditDialog {
             databaseNameField.setText(server.getDatabaseName());
             centralCheckBox.setSelected(server.isCentral());
             dbSignField.setText(server.getDbSign());
+            parentComboBox.setValue(server.getParentName());
         }
     }
 
@@ -151,6 +166,7 @@ public class ServerEditDialog {
         s.setDatabaseName(databaseNameField.getText());
         s.setDbSign(dbSignField.getText());
         s.setCentral(centralCheckBox.isSelected());
+        s.setParentName(parentComboBox.getValue());
     }
 
     public boolean isOkClicked() {

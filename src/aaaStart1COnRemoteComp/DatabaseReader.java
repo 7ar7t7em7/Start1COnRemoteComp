@@ -6,36 +6,34 @@ import java.sql.ResultSet;
 import java.sql.ResultSetMetaData;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 public class DatabaseReader {
 
-    /** Стандартный порт SQL Server */
     private static final int DEFAULT_PORT = 1433;
 
     /**
-     * Подключается к SQL Server 2000 и читает таблицу _1SDBSET.
-     *
-     * @param host     IP-адрес или имя сервера SQL
-     * @param database Имя базы данных
-     * @param username Логин
-     * @param password Пароль
-     * @return Строка с результатом (или текст ошибки)
+     * Результат запроса: список колонок и список строк.
      */
-    public static String readDbSetTable(String host, String database,
-                                        String username, String password) {
-        StringBuilder result = new StringBuilder();
+    public static class QueryResult {
+        public final List<String> columns = new ArrayList<>();
+        public final List<Map<String, String>> rows = new ArrayList<>();
+    }
 
-        // 1. Регистрация драйвера jTDS
+    public static QueryResult readDbSetTable(String host, String database,
+                                             String username, String password) throws SQLException {
         try {
             Class.forName("net.sourceforge.jtds.jdbc.Driver");
         } catch (ClassNotFoundException e) {
-            return "Драйвер jTDS не найден. Убедитесь, что JAR добавлен в Build Path.";
+            throw new SQLException("Драйвер jTDS не найден. Убедитесь, что JAR добавлен в Build Path.", e);
         }
 
-        // 2. Формируем URL подключения
         String dbUrl = "jdbc:jtds:sqlserver://" + host + ":" + DEFAULT_PORT + "/" + database;
+        QueryResult result = new QueryResult();
 
-        // 3. Подключение и выполнение запроса
         try (Connection conn = DriverManager.getConnection(dbUrl, username, password);
              Statement stmt = conn.createStatement();
              ResultSet rs = stmt.executeQuery("SELECT * FROM _1SDBSET")) {
@@ -43,24 +41,21 @@ public class DatabaseReader {
             ResultSetMetaData meta = rs.getMetaData();
             int columnCount = meta.getColumnCount();
 
-            // Заголовки столбцов
+            // Запоминаем имена колонок
             for (int i = 1; i <= columnCount; i++) {
-                result.append(meta.getColumnName(i)).append("\t");
+                result.columns.add(meta.getColumnName(i));
             }
-            result.append("\n----------------------------------------\n");
 
-            // Данные
+            // Читаем строки
             while (rs.next()) {
+                Map<String, String> row = new LinkedHashMap<>();
                 for (int i = 1; i <= columnCount; i++) {
-                    result.append(rs.getString(i)).append("\t");
+                    String value = rs.getString(i);
+                    row.put(meta.getColumnName(i), value == null ? "" : value);
                 }
-                result.append("\n");
+                result.rows.add(row);
             }
-
-        } catch (SQLException e) {
-            return "Ошибка SQL: " + e.getMessage();
         }
-
-        return result.toString();
+        return result;
     }
 }
