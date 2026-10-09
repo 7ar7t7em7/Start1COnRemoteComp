@@ -2,6 +2,7 @@ package aaaStart1COnRemoteComp;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import com.google.gson.JsonSyntaxException;
 import com.google.gson.reflect.TypeToken;
 
 import java.io.IOException;
@@ -21,7 +22,7 @@ import java.util.List;
 public class ServerStorage {
 
     // Путь к файлу. Лежит в домашней папке пользователя: C:\Users\<user>\1c_servers.json
-	private static final Path FILE_PATH = Paths.get("D:\\ae\\1c_servers.json");
+	private static final Path FILE_PATH = Paths.get("D:\\ae\\Config\\1c_servers.json");
 
     private static final Gson GSON = new GsonBuilder()
             .setPrettyPrinting() // Читаемый формат с отступами
@@ -39,13 +40,16 @@ public class ServerStorage {
     /** Загружает список серверов из файла. Если файла нет — возвращает пустой список. */
     public static List<ServerInfo> load() throws IOException {
         if (!Files.exists(FILE_PATH)) {
-            System.out.println("Файл не найден, начинаем с пустого списка: " + FILE_PATH);
             return new ArrayList<>();
         }
         try (Reader reader = Files.newBufferedReader(FILE_PATH, StandardCharsets.UTF_8)) {
             Type listType = new TypeToken<List<ServerInfo>>() {}.getType();
             List<ServerInfo> result = GSON.fromJson(reader, listType);
             return result != null ? result : new ArrayList<>();
+        } catch (JsonSyntaxException e) {
+            throw new IOException("Файл " + FILE_PATH + " повреждён.\n"
+                    + "Удалите его или исправьте вручную.\n"
+                    + "Ошибка: " + e.getMessage(), e);
         }
     }
 

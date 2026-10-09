@@ -30,6 +30,8 @@ public class ServerEditDialog {
     private TextField databasePathField;
     private TextField databaseNameField;
     private CheckBox centralCheckBox;
+    private TextField smbUserField;
+    private PasswordField smbPasswordField;
 
     /**
      * @param owner       родительское окно
@@ -71,6 +73,10 @@ public class ServerEditDialog {
         databaseNameField = new TextField();
         parentComboBox = new ComboBox<>();  
         centralCheckBox = new CheckBox("Центральный сервер");
+        smbUserField = new TextField();
+        smbUserField.setMaxWidth(Double.MAX_VALUE);
+        smbPasswordField = new PasswordField();
+        smbPasswordField.setMaxWidth(Double.MAX_VALUE);
         
         grid.add(new Label("Наименование:"), 0, 0);   grid.add(nameField, 1, 0);
         grid.add(new Label("Имя компьютера:"), 0, 1); grid.add(computerNameField, 1, 1);
@@ -80,7 +86,11 @@ public class ServerEditDialog {
         grid.add(new Label("Имя БД:"), 0, 5);         grid.add(databaseNameField, 1, 5);
         grid.add(new Label("DBSIGN:"), 0, 6);         grid.add(dbSignField, 1, 6);
         grid.add(new Label("Родитель:"), 0, 7);       grid.add(parentComboBox, 1, 7);
-        grid.add(centralCheckBox, 1, 8);
+        grid.add(new Label("Логин SMB/WMI:"), 0, 8);
+        grid.add(smbUserField, 1, 8);
+        grid.add(new Label("Пароль SMB/WMI:"), 0, 9);
+        grid.add(smbPasswordField, 1, 9);
+        grid.add(centralCheckBox, 1, 10);
 
         // ==== Кнопки ====
         Button okButton = new Button("OK");
@@ -98,7 +108,7 @@ public class ServerEditDialog {
         buttons.setPadding(new Insets(10, 10, 10, 10));
 
         javafx.scene.layout.VBox root = new javafx.scene.layout.VBox(grid, buttons);
-        stage.setScene(new Scene(root, 480, 380));
+        stage.setScene(new Scene(root, 480, 460));
 
         if (readOnly) {
             // Запрещаем редактирование
@@ -112,6 +122,8 @@ public class ServerEditDialog {
             okButton.setDisable(true);
             cancelButton.setText("Закрыть");
             parentComboBox.setDisable(true);
+            smbUserField.setEditable(false);
+            smbPasswordField.setEditable(false);
         }
 
         // Заполняем поля, если объект передан
@@ -125,6 +137,8 @@ public class ServerEditDialog {
             centralCheckBox.setSelected(server.isCentral());
             dbSignField.setText(server.getDbSign());
             parentComboBox.setValue(server.getParentName());
+            smbUserField.setText(server.getSmbUser());
+            smbPasswordField.setText(server.getSmbPassword());
         }
     }
 
@@ -167,6 +181,8 @@ public class ServerEditDialog {
         s.setDbSign(dbSignField.getText());
         s.setCentral(centralCheckBox.isSelected());
         s.setParentName(parentComboBox.getValue());
+        s.setSmbUser(smbUserField.getText());
+        s.setSmbPassword(smbPasswordField.getText());
     }
 
     public boolean isOkClicked() {

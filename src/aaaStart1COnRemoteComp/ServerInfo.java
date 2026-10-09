@@ -30,6 +30,12 @@ public class ServerInfo {
 
     /** Признак: true — центральный сервер, false — периферийный */
     private boolean central;
+    
+    /** Логин для SMB и WMI (например, "svarog\\admin-db") */
+    private String smbUser;
+
+    /** Пароль для SMB и WMI */
+    private String smbPassword;
 
     // ===== Конструкторы =====
 
@@ -50,6 +56,12 @@ this.central = central;
 }
 
     // ===== Геттеры и сеттеры =====
+    
+    public String getSmbUser() { return smbUser; }
+    public void setSmbUser(String smbUser) { this.smbUser = smbUser; }
+
+    public String getSmbPassword() { return smbPassword; }
+    public void setSmbPassword(String smbPassword) { this.smbPassword = smbPassword; }
     
     public String getParentName() { return parentName; }
     public void setParentName(String parentName) { this.parentName = parentName; }

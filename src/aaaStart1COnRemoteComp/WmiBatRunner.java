@@ -11,6 +11,7 @@ import java.util.concurrent.TimeUnit;
  * Класс для запуска BAT-файла на удаленном Windows-компьютере через WMI (wmic.exe).
  * Подходит для Windows Server 2003, где нет WinRM.
  */
+
 public class WmiBatRunner {
 
     private final String host;
@@ -25,14 +26,19 @@ public class WmiBatRunner {
         this.timeoutSeconds = timeoutSeconds;
     }
 
-    /**
-     * Запускает BAT-файл на удаленном компьютере.
-     *
-     * @param remoteBatPath Полный путь к .bat на удаленном ПК (например, "C:\\temp\\run_me.bat")
-     * @return Вывод wmic (ProcessId, ReturnValue)
-     */
+    /** Запускает BAT-файл на удалённом компьютере. */
     public String runBat(String remoteBatPath) throws IOException, InterruptedException {
+        return runCommand(remoteBatPath);
+    }
+
+    /**
+     * Запускает произвольную команду на удалённом компьютере.
+     * Например: "C:\\ae\\run.bat" или "cmd.exe /c mkdir C:\\ae\\Log".
+     */
+    public String runCommand(String command) throws IOException, InterruptedException {
         List<String> cmdList = new ArrayList<>();
+        cmdList.add("cmd.exe");
+        cmdList.add("/c");
         cmdList.add("wmic");
         cmdList.add("/node:" + host);
         cmdList.add("/user:\"" + username + "\"");
@@ -40,12 +46,12 @@ public class WmiBatRunner {
         cmdList.add("process");
         cmdList.add("call");
         cmdList.add("create");
-        // Без кавычек вокруг пути к bat, кавычки только вокруг рабочей директории
-        cmdList.add(remoteBatPath + ",\"C:\\ae\"");
+        cmdList.add(command);
 
-        String command = "wmic /node:" + host + " /user:\"" + username + "\" /password:" + password 
-                + " process call create \"" + remoteBatPath + "\"";
-        Process process = Runtime.getRuntime().exec(command);
+        ProcessBuilder pb = new ProcessBuilder(cmdList);
+        pb.redirectErrorStream(true);
+
+        Process process = pb.start();
 
         StringBuilder output = new StringBuilder();
         try (BufferedReader reader = new BufferedReader(
@@ -59,7 +65,7 @@ public class WmiBatRunner {
         boolean finished = process.waitFor(timeoutSeconds, TimeUnit.SECONDS);
         if (!finished) {
             process.destroyForcibly();
-            throw new IOException("Превышен таймаут запуска BAT (" + timeoutSeconds + " сек)");
+            throw new IOException("Превышен таймаут запуска команды (" + timeoutSeconds + " сек)");
         }
 
         return output.toString();

@@ -71,8 +71,10 @@ public class SmbFileTransfer {
      * Проверяет существование файла на удаленном сервере.
      */
     public boolean exists(String remoteSharePath, String remoteFileName) throws Exception {
-        SmbFile remoteFile = new SmbFile(remoteSharePath + remoteFileName, auth);
-        return remoteFile.exists();
+        jcifs.smb.SmbFile dir = new jcifs.smb.SmbFile(remoteSharePath, auth);
+        jcifs.smb.SmbFile[] files = dir.listFiles((jcifs.smb.SmbFileFilter) f -> 
+            f.getName().equalsIgnoreCase(remoteFileName));
+        return files.length > 0;
     }
 
     /**
@@ -83,5 +85,50 @@ public class SmbFileTransfer {
         if (remoteFile.exists()) {
             remoteFile.delete();
         }
+    }
+    
+    /**
+     * Загружает байты в файл на удалённом сервере.
+     */
+    public void uploadBytes(byte[] data, String remoteSharePath, String remoteFileName) throws Exception {
+        String remotePath = remoteSharePath + remoteFileName;
+        jcifs.smb.SmbFile remoteFile = new jcifs.smb.SmbFile(remotePath, auth);
+
+        try (jcifs.smb.SmbFileOutputStream out = new jcifs.smb.SmbFileOutputStream(remoteFile)) {
+            out.write(data);
+        }
+        System.out.println("Загружено: " + remotePath + " (" + data.length + " байт)");
+    }
+
+    /**
+     * Проверяет, существует ли папка на удалённом сервере.
+     */
+    public boolean folderExists(String remoteSharePath, String folderName) throws Exception {
+        jcifs.smb.SmbFile dir = new jcifs.smb.SmbFile(remoteSharePath + folderName + "/", auth);
+        return dir.exists() && dir.isDirectory();
+    }
+    
+    /**
+     * Создаёт папку на удалённом сервере, если её нет.
+     *
+     * @param remoteSharePath путь к шаре, например "smb://10.1.2.171/ae$/"
+     * @param folderName      имя папки, например "Log"
+     */
+    public void mkdir(String remoteSharePath, String folderName) throws Exception {
+        jcifs.smb.SmbFile dir = new jcifs.smb.SmbFile(remoteSharePath + folderName + "/", auth);
+        if (!dir.exists()) {
+            dir.mkdir();
+            System.out.println("Создана папка: " + remoteSharePath + folderName);
+        } else {
+            System.out.println("Папка уже существует: " + remoteSharePath + folderName);
+        }
+    }
+    
+    /**
+     * Возвращает размер файла на удалённом сервере в байтах.
+     */
+    public long getSize(String remoteSharePath, String remoteFileName) throws Exception {
+        jcifs.smb.SmbFile file = new jcifs.smb.SmbFile(remoteSharePath + remoteFileName, auth);
+        return file.length();
     }
 }
