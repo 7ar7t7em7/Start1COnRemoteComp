@@ -5,6 +5,8 @@ import java.util.List;
 import javafx.geometry.Insets;
 import javafx.scene.Scene;
 import javafx.scene.control.*;
+import javafx.scene.input.KeyCode;
+import javafx.scene.input.KeyCodeCombination;
 import javafx.scene.layout.ColumnConstraints;
 import javafx.scene.layout.GridPane;
 import javafx.scene.layout.Priority;
@@ -108,7 +110,23 @@ public class ServerEditDialog {
         buttons.setPadding(new Insets(10, 10, 10, 10));
 
         javafx.scene.layout.VBox root = new javafx.scene.layout.VBox(grid, buttons);
-        stage.setScene(new Scene(root, 480, 460));
+        Scene scene = new Scene(root, 480, 460); // у вас могут быть другие размеры
+        stage.setScene(scene);
+        
+     // ==== Горячие клавиши ====
+     // 1. Отмена по Esc (работает всегда, даже в режиме просмотра)
+     scene.getAccelerators().put(
+         new KeyCodeCombination(KeyCode.ESCAPE),
+         () -> stage.close()
+     );
+
+  // 2. Сохранение по Enter (работает только если не режим просмотра)
+     if (!readOnly) {
+         scene.getAccelerators().put(
+             new KeyCodeCombination(KeyCode.ENTER),
+             () -> okButton.fire() 
+         );
+     }
 
         if (readOnly) {
             // Запрещаем редактирование

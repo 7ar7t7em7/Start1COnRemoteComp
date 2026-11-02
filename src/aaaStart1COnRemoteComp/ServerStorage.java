@@ -34,7 +34,7 @@ public class ServerStorage {
         try (Writer writer = Files.newBufferedWriter(FILE_PATH, StandardCharsets.UTF_8)) {
             GSON.toJson(servers, writer);
         }
-        System.out.println("Сохранено в: " + FILE_PATH);
+        AppLogger.info("Сохранено в: " + FILE_PATH);
     }
 
     /** Загружает список серверов из файла. Если файла нет — возвращает пустой список. */

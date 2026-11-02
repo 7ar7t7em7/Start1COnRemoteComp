@@ -41,7 +41,7 @@ public class SmbFileTransfer {
                 remoteStream.write(buffer, 0, bytesRead);
             }
         }
-        System.out.println("Загружено: " + remotePath);
+        AppLogger.info("Загружено: " + remotePath);
     }
 
     /**
@@ -64,7 +64,7 @@ public class SmbFileTransfer {
                 localStream.write(buffer, 0, bytesRead);
             }
         }
-        System.out.println("Скачано: " + localFilePath);
+        AppLogger.info("Скачано: " + localFilePath);
     }
 
     /**
@@ -97,7 +97,7 @@ public class SmbFileTransfer {
         try (jcifs.smb.SmbFileOutputStream out = new jcifs.smb.SmbFileOutputStream(remoteFile)) {
             out.write(data);
         }
-        System.out.println("Загружено: " + remotePath + " (" + data.length + " байт)");
+        AppLogger.info("Загружено: " + remotePath + " (" + data.length + " байт)");
     }
 
     /**
@@ -118,9 +118,9 @@ public class SmbFileTransfer {
         jcifs.smb.SmbFile dir = new jcifs.smb.SmbFile(remoteSharePath + folderName + "/", auth);
         if (!dir.exists()) {
             dir.mkdir();
-            System.out.println("Создана папка: " + remoteSharePath + folderName);
+            AppLogger.info("Создана папка: " + remoteSharePath + folderName);
         } else {
-            System.out.println("Папка уже существует: " + remoteSharePath + folderName);
+        	AppLogger.info("Папка уже существует: " + remoteSharePath + folderName);
         }
     }
     

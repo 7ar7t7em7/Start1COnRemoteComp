@@ -159,4 +159,25 @@ this.central = central;
                 ", central=" + central +
                 '}';
     }
+    
+    /**
+     * Возвращает имя сетевой шары для папки базы.
+     * Например: для "D:\Work_bases\Crimea_2026_Rub\" вернёт "Crimea_2026_Rub$"
+     */
+    public String getShareName() {
+        if (databasePath == null || databasePath.isBlank()) return null;
+        // Убираем слэши в конце
+        String path = databasePath;
+        while (path.endsWith("\\") || path.endsWith("/")) {
+            path = path.substring(0, path.length() - 1);
+        }
+        // Ищем последний слэш
+        int lastSlash = path.lastIndexOf("\\");
+        if (lastSlash == -1) lastSlash = path.lastIndexOf("/");
+        if (lastSlash == -1) return path + "$"; // Если слэшей нет, берем всю строку
+        
+        String folderName = path.substring(lastSlash + 1);
+        return folderName + "$";
+    }
+    
 }

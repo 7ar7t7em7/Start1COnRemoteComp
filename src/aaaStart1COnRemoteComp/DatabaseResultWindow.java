@@ -109,16 +109,6 @@ public class DatabaseResultWindow {
 
         if (confirmedRows.isEmpty()) return;
 
-     // ОТЛАДКА: что реально в строках
-     System.out.println("=== Выбранные строки ===");
-     for (DbSetRow row : confirmedRows) {
-         System.out.println("  Столбцы строки: " + row.getValues().keySet());
-         System.out.println("  dbdescr = [" + row.get("dbdescr") + "]");
-         System.out.println("  DBSIGN  = [" + row.get("DBSIGN") + "]");
-         System.out.println("  dbstatus= [" + row.get("dbstatus") + "]");
-     }
-     System.out.println("=== /Выбранные строки ===");
-
         stage.close();
     }
 

@@ -74,6 +74,21 @@ public class SelectChildServersWindow {
             }
         }));
 
+        // ==== Обработка нажатия пробела ====
+        listView.setOnKeyPressed(event -> {
+            if (event.getCode() == javafx.scene.input.KeyCode.SPACE) {
+                // Получаем текущий выделенный элемент
+                ChildRow selectedRow = listView.getSelectionModel().getSelectedItem();
+                if (selectedRow != null) {
+                    // Инвертируем значение флажка (ставим, если не стоял; снимаем, если стоял)
+                    selectedRow.selectedProperty().set(!selectedRow.isSelected());
+                    
+                    // Гасим событие, чтобы ListView не пытался прокручиваться или делать что-то еще
+                    event.consume(); 
+                }
+            }
+        });
+
         // ==== Кнопки ====
         Button selectAllButton = new Button("Выделить все");
         Button deselectAllButton = new Button("Снять все");

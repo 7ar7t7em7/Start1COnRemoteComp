@@ -14,16 +14,31 @@
         <TreeView fx:id="treeView" />
     </center>
 
-    <bottom>
-        <HBox spacing="10" alignment="CENTER_LEFT">
-            <padding>
-                <Insets top="10" right="10" bottom="10" left="10"/>
-            </padding>
-            <Button fx:id="addButton" text="Добавить" onAction="#onAdd"/>
-            <Button fx:id="editButton" text="Редактировать" onAction="#onEdit"/>
-            <Button fx:id="deleteButton" text="Удалить" onAction="#onDelete"/>
-            <Button fx:id="readDbButton" text="Прочитаь БД" onAction="#onReadDatabase"/>
-        </HBox>
-    </bottom>
+<?import javafx.scene.control.TextArea?>
+<?import javafx.scene.layout.Priority?>
+<?import javafx.scene.layout.VBox?>
 
+<!-- ... верхняя часть с TreeView ... -->
+
+    <bottom>
+        <VBox>
+            <!-- Лог -->
+            <TextArea fx:id="logArea" 
+                      editable="false" 
+                      wrapText="true" 
+                      prefHeight="150" 
+                      style="-fx-font-family: 'Consolas', monospace; -fx-font-size: 11px;" />
+            
+            <!-- Кнопки -->
+            <HBox spacing="10" alignment="CENTER_LEFT">
+                <padding>
+                    <Insets top="10" right="10" bottom="10" left="10"/>
+                </padding>
+                <Button fx:id="addButton" text="Добавить" onAction="#onAdd"/>
+                <Button fx:id="editButton" text="Редактировать" onAction="#onEdit"/>
+                <Button fx:id="deleteButton" text="Удалить" onAction="#onDelete"/>
+                <Button fx:id="readDbButton" text="Прочитать БД" onAction="#onReadDatabase"/>
+            </HBox>
+        </VBox>
+    </bottom>
 </BorderPane>
