@@ -34,6 +34,7 @@ public class ServerEditDialog {
     private CheckBox centralCheckBox;
     private TextField smbUserField;
     private PasswordField smbPasswordField;
+    private CheckBox usePsExecCheckBox;
 
     /**
      * @param owner       родительское окно

@@ -2,6 +2,7 @@ package aaaStart1COnRemoteComp;
 
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
+import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.input.MouseButton;
@@ -17,7 +18,6 @@ import java.nio.charset.Charset;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 
-
 public class MainController {
 
     @FXML
@@ -25,6 +25,7 @@ public class MainController {
 
     @FXML
     private Button readDbButton;
+    
     @FXML
     private javafx.scene.control.TextArea logArea;
 
@@ -32,19 +33,19 @@ public class MainController {
 
     @FXML
     private void initialize() {
-        
-    	// Связываем UI с логгером
+        // Связываем UI с логгером
         AppLogger.setUiLogArea(logArea);
         AppLogger.info("Приложение запущено.");
-    	
-    	jcifs.Config.setProperty("jcifs.smb.client.attrExpirationPeriod", "0");
+        
+        jcifs.Config.setProperty("jcifs.smb.client.attrExpirationPeriod", "0");
+        
         // ==== Корневой узел (невидимый) ====
         TreeItem<ServerInfo> root = new TreeItem<>(null);
         root.setExpanded(true);
         treeView.setRoot(root);
-        treeView.setShowRoot(false); // сам корень не показываем
+        treeView.setShowRoot(false);
 
-     // ==== Отображение узлов ====
+        // ==== Отображение узлов ====
         treeView.setCellFactory(_ -> {
             TreeCell<ServerInfo> cell = new TreeCell<>() {
                 @Override
@@ -53,13 +54,11 @@ public class MainController {
                     if (empty || item == null) {
                         setText(null);
                         setStyle("");
-                        setContextMenu(null);   // ← нет меню для пустых ячеек
+                        setContextMenu(null);
                     } else {
                         String display = item.getName();
                         if (display == null || display.isBlank()) {
-                            display = item.getComputerName() != null
-                                    ? item.getComputerName()
-                                    : "(без имени)";
+                            display = item.getComputerName() != null ? item.getComputerName() : "(без имени)";
                         }
                         setText(display);
 
@@ -69,57 +68,28 @@ public class MainController {
                             setStyle("-fx-text-fill: red;");
                         }
 
-                     // ==== Контекстное меню (для всех серверов) ====
-                        MenuItem unloadItem = new MenuItem("Выгрузить из центра - Загрузить в периферию");
-                        MenuItem loadItem = new MenuItem("Загрузить данные");
-                        MenuItem editItem = new MenuItem("Редактировать");
+                        MenuItem exchangeItem;
+                        if (item.isCentral()) {
+                            exchangeItem = new MenuItem("Выгрузить из центра - Загрузить в периферию");
+                            exchangeItem.setOnAction(e -> onUnloadData(item));
+                        } else {
+                            exchangeItem = new MenuItem("Выгрузить из периферии - Загрузить в центр");
+                            exchangeItem.setOnAction(e -> onUnloadPeriphery(item));
+                        }
                         
-                     // Обработчик "Редактировать" — вызываем наш новый метод editServer
-                        editItem.setOnAction(_ -> editServer(item));
+                        MenuItem editItem = new MenuItem("Редактировать");
+                        editItem.setOnAction(e -> editServer(item));
 
-                        unloadItem.setOnAction(_ -> {
-                            if (item.isCentral()) {
-                                onUnloadData(item);          // центральный — с окном выбора
-                            } else {
-                                onUnloadSingle(item);        // периферийный — сразу
-                            }
-                        });
-                        loadItem.setOnAction(_ -> {
-                            if (item.isCentral()) {
-                                onLoadData(item);            // центральный — с окном выбора
-                            } else {
-                                onLoadSingle(item);          // периферийный — сразу
-                            }
-                        });
-
-                        unloadItem.setOnAction(_ -> {
-                            if (item.isCentral()) {
-                                onUnloadData(item);          // центральный — с окном выбора
-                            } else {
-                                onUnloadSingle(item);        // периферийный — сразу
-                            }
-                        });
-                        loadItem.setOnAction(_ -> {
-                            if (item.isCentral()) {
-                                onLoadData(item);            // центральный — с окном выбора
-                            } else {
-                                onLoadSingle(item);          // периферийный — сразу
-                            }
-                        });
-
-                     // Собираем все пункты в меню
-                        ContextMenu menu = new ContextMenu(unloadItem, loadItem, new SeparatorMenuItem(), editItem);
+                        ContextMenu menu = new ContextMenu(exchangeItem, new SeparatorMenuItem(), editItem);
                         setContextMenu(menu);
                     }
                 }
             };
 
-            // 2. Вешаем фильтр на MOUSE_PRESSED — ДО того как TreeCell обработает клик
+            // Двойной клик
             cell.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> {
                 if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
-                    // Гасим событие — сворачивание не произойдёт
                     event.consume();
-
                     ServerInfo selected = getSelectedServer();
                     if (selected != null) {
                         openDialog(selected, true);
@@ -127,11 +97,10 @@ public class MainController {
                 }
             });
 
-            // 3. Возвращаем ячейку из cellFactory
             return cell;
         });
 
-        // ==== Слушаем изменение выделения — управляем кнопкой ====
+        // ==== Слушаем изменение выделения ====
         treeView.getSelectionModel().selectedItemProperty().addListener(
                 (_, _, newVal) -> {
                     ServerInfo s = (newVal == null) ? null : newVal.getValue();
@@ -166,7 +135,6 @@ public class MainController {
         TreeItem<ServerInfo> root = treeView.getRoot();
         root.getChildren().clear();
 
-        // Корневые узлы (без parentName)
         for (ServerInfo s : servers) {
             if (s.getParentName() == null || s.getParentName().isBlank()) {
                 TreeItem<ServerInfo> item = new TreeItem<>(s);
@@ -175,7 +143,6 @@ public class MainController {
             }
         }
 
-        // Дочерние узлы
         for (ServerInfo s : servers) {
             String parent = s.getParentName();
             if (parent == null || parent.isBlank()) continue;
@@ -191,7 +158,6 @@ public class MainController {
         }
     }
 
-    /** Ищет TreeItem по имени родителя (рекурсивно). */
     private TreeItem<ServerInfo> findTreeItem(TreeItem<ServerInfo> node, String parentName) {
         for (TreeItem<ServerInfo> child : node.getChildren()) {
             ServerInfo s = child.getValue();
@@ -204,18 +170,11 @@ public class MainController {
         return null;
     }
 
-    /** Возвращает ServerInfo выделенного узла (или null). */
     private ServerInfo getSelectedServer() {
         TreeItem<ServerInfo> item = treeView.getSelectionModel().getSelectedItem();
         return item == null ? null : item.getValue();
     }
 
-    /** Возвращает TreeItem выделенного узла (или null). */
-    private TreeItem<ServerInfo> getSelectedTreeItem() {
-        return treeView.getSelectionModel().getSelectedItem();
-    }
-
-    /** Включает кнопку "Прочитать БД" только если выделен центральный сервер. */
     private void updateReadDbButtonState(ServerInfo selected) {
         boolean enabled = (selected != null) && selected.isCentral();
         readDbButton.setDisable(!enabled);
@@ -240,7 +199,6 @@ public class MainController {
 
     @FXML
     private void onEdit() {
-        // Этот метод вызывается кнопкой внизу — берем выделенный элемент
         ServerInfo selected = getSelectedServer();
         if (selected == null) {
             showWarning("Выберите сервер для редактирования.");
@@ -249,26 +207,17 @@ public class MainController {
         editServer(selected);
     }
     
-    /**
-     * Вспомогательный метод для редактирования конкретного сервера.
-     * Вызывается и из кнопки, и из контекстного меню.
-     */
     private void editServer(ServerInfo server) {
         if (server == null) return;
 
-        ServerEditDialog dialog = new ServerEditDialog(
-                getStage(),
-                server,
-                false,
-                getPossibleParentNames(server));
+        ServerEditDialog dialog = new ServerEditDialog(getStage(), server, false, getPossibleParentNames(server));
         dialog.showAndWait();
         
         if (dialog.isOkClicked()) {
-            String oldName = server.getName(); // запоминаем старое имя
+            String oldName = server.getName();
             dialog.applyToServer(server);
             String newName = server.getName();
 
-            // Если имя родителя изменилось — обновляем ссылки у детей
             if (oldName != null && !oldName.equals(newName)) {
                 for (ServerInfo s : servers) {
                     if (oldName.equals(s.getParentName())) {
@@ -276,7 +225,6 @@ public class MainController {
                     }
                 }
             }
-
             rebuildTree();
             saveServers();
             selectByName(server.getName());
@@ -320,21 +268,16 @@ public class MainController {
 
         try {
             DatabaseReader.QueryResult result = DatabaseReader.readDbSetTable(
-                    selected.getIp(),
-                    selected.getDatabaseName(),
-                    loginDialog.getUsername(),
-                    loginDialog.getPassword());
+                    selected.getIp(), selected.getDatabaseName(),
+                    loginDialog.getUsername(), loginDialog.getPassword());
 
             List<DbSetRow> confirmedRows = new ArrayList<>();
-
             String serverInfo = selected.getComputerName() + " (" + selected.getIp() + ")";
-            DatabaseResultWindow window = new DatabaseResultWindow(
-                    getStage(), result, serverInfo, selected.getDatabaseName(), confirmedRows);
+            DatabaseResultWindow window = new DatabaseResultWindow(getStage(), result, serverInfo, selected.getDatabaseName(), confirmedRows);
             window.showAndWait();
 
             if (confirmedRows.isEmpty()) return;
 
-            // Создаём ServerInfo из выбранных строк
             List<ServerInfo> newServers = new ArrayList<>();
             for (DbSetRow row : confirmedRows) {
                 ServerInfo s = new ServerInfo();
@@ -346,7 +289,7 @@ public class MainController {
                 s.setDatabasePath("");
                 s.setDatabaseName("");
                 s.setCentral(false);
-                s.setParentName(selected.getName()); // ← привязка к родителю
+                s.setParentName(selected.getName());
                 newServers.add(s);
             }
 
@@ -354,7 +297,6 @@ public class MainController {
             rebuildTree();
             saveServers();
 
-            // Раскрываем родителя, чтобы новые узлы были видны
             TreeItem<ServerInfo> parentItem = findTreeItem(treeView.getRoot(), selected.getName());
             if (parentItem != null) {
                 parentItem.setExpanded(true);
@@ -366,19 +308,9 @@ public class MainController {
         }
     }
 
-    // ============================================================
-    //  ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
-    // ============================================================
-    
     private void openDialog(ServerInfo server, boolean readOnly) {
-        // Двойной клик по центральному серверу — всегда только просмотр
         boolean effectiveReadOnly = readOnly || server.isCentral();
-        
-        ServerEditDialog dialog = new ServerEditDialog(
-                getStage(),
-                server,
-                effectiveReadOnly,
-                getPossibleParentNames(server));
+        ServerEditDialog dialog = new ServerEditDialog(getStage(), server, effectiveReadOnly, getPossibleParentNames(server));
         dialog.showAndWait();
         
         if (!effectiveReadOnly && dialog.isOkClicked()) {
@@ -389,7 +321,6 @@ public class MainController {
         }
     }
 
-    /** Выделяет узел с указанным именем (если он есть в дереве). */
     private void selectByName(String name) {
         if (name == null) return;
         TreeItem<ServerInfo> item = findTreeItem(treeView.getRoot(), name);
@@ -398,24 +329,14 @@ public class MainController {
         }
     }
 
-    /** Проверяет, что все поля ServerInfo заполнены. */
     private boolean isFullyFilled(ServerInfo s) {
-        return notBlank(s.getName())
-                && notBlank(s.getDbSign())
-                && notBlank(s.getComputerName())
-                && notBlank(s.getIp())
-                && notBlank(s.getProgram1CPath())
-                && notBlank(s.getDatabasePath())
-                && notBlank(s.getDatabaseName());
+        return notBlank(s.getName()) && notBlank(s.getDbSign()) && notBlank(s.getComputerName())
+                && notBlank(s.getIp()) && notBlank(s.getProgram1CPath())
+                && notBlank(s.getDatabasePath()) && notBlank(s.getDatabaseName());
     }
 
-    private boolean notBlank(String s) {
-        return s != null && !s.isBlank();
-    }
-
-    private boolean isBlank(String s) {
-        return s == null || s.isBlank();
-    }
+    private boolean notBlank(String s) { return s != null && !s.isBlank(); }
+    private boolean isBlank(String s) { return s == null || s.isBlank(); }
 
     private void saveServers() {
         try {
@@ -437,7 +358,6 @@ public class MainController {
         return (Stage) treeView.getScene().getWindow();
     }
     
-    /** Находит всех подчинённых серверов для указанного родителя. */
     private List<ServerInfo> findChildren(ServerInfo parent) {
         List<ServerInfo> result = new ArrayList<>();
         for (ServerInfo s : servers) {
@@ -449,38 +369,31 @@ public class MainController {
     }
 
     /**
-     * Выполняет выгрузку данных из центральной базы.
+     * Выполняет выгрузку данных из центральной базы (с ретраями).
      */
     private void performUnload(ServerInfo centralServer, List<ServerInfo> targets) {
-        // Генерируем ID главной операции
         String mainOpId = "EX-" + (System.currentTimeMillis() % 100000);
         AppLogger.pushOperationId(mainOpId);
 
         try {
+            List<String> exportedFiles = new ArrayList<>();
             AppLogger.info("==========================================================");
             AppLogger.info("НАЧАЛО ПРОЦЕССА ВЫГРУЗКИ ИЗ ЦЕНТРА: " + centralServer.getName());
             AppLogger.info("==========================================================");
 
-            // ==== 1. Проверки ====
             if (targets.isEmpty()) {
                 showWarning("Не выбрано ни одной базы для выгрузки.");
                 return;
             }
-            if (isBlank(centralServer.getProgram1CPath())
-                    || isBlank(centralServer.getDatabasePath())) {
-                showWarning("У центрального сервера не заполнены:\n"
-                        + "  • путь к 1С 7.7 (program1CPath)\n"
-                        + "  • путь к базе (databasePath)\n"
-                        + "Отредактируйте сервер.");
+            if (isBlank(centralServer.getProgram1CPath()) || isBlank(centralServer.getDatabasePath())) {
+                showWarning("У центрального сервера не заполнены пути к 1С или базе.");
                 return;
             }
             if (isBlank(centralServer.getSmbUser()) || isBlank(centralServer.getSmbPassword())) {
-                showWarning("У центрального сервера не заполнены логин/пароль SMB/WMI.\n"
-                        + "Отредактируйте сервер и заполните поля «Логин SMB/WMI» и «Пароль SMB/WMI».");
+                showWarning("У центрального сервера не заполнены логин/пароль SMB/WMI.");
                 return;
             }
 
-            // ==== 2. Собираем коды баз через запятую ====
             StringBuilder writeTo = new StringBuilder();
             for (ServerInfo t : targets) {
                 String sign = t.getDbSign();
@@ -496,103 +409,146 @@ public class MainController {
             }
             String writeToString = writeTo.toString();
 
-            // ==== 3. Имя лог-файла ====
-            String timestamp = new SimpleDateFormat("yyMMdd_HHmmss").format(new Date());
-            String logFileName = timestamp + "aelog.txt";
-
-            // ==== 4. PRM-файл ====
-            String prmContent =
-                    "[General]\r\n" +
-                    "Output=c:\\ae\\Log\\" + logFileName + "\r\n" +
-                    "Quit=1\r\n" +
-                    "AutoExchange=1\r\n" +
-                    "[AutoExchange]\r\n" +
-                    "SharedMode=1\r\n" +
-                    "WriteTo=" + writeToString + "\r\n";
-
-            // ==== 5. BAT-файл ====
-            String batContent =
-                    "@echo off\r\n" +
-                    "\"" + centralServer.getProgram1CPath() + "\" " +
-                    "config " +
-                    "/d\"" + centralServer.getDatabasePath() + "\" " +
-                    "/nAe " +
-                    "/pAe " +
+            String batContent = "@echo off\r\n" +
+                    "\"" + centralServer.getProgram1CPath() + "\" config " +
+                    "/d\"" + centralServer.getDatabasePath() + "\" /nAe /pAe " +
                     "/@c:\\ae\\aeparams.prm\r\n";
 
-            // ==== 6. Учётные данные ====
             String smbUser = centralServer.getSmbUser();
             String smbPass = centralServer.getSmbPassword();
             String remoteShare = "smb://" + centralServer.getIp() + "/ae$/";
-
-            SmbFileTransfer transfer = new SmbFileTransfer(
-                    centralServer.getIp(), smbUser, smbPass);
-            transfer.mkdir(remoteShare, "Log");
-
-            transfer.uploadBytes(prmContent.getBytes(Charset.forName("Cp1251")), remoteShare, "aeparams.prm");
-            transfer.uploadBytes(batContent.getBytes(Charset.forName("Cp866")), remoteShare, "unload.bat");
-
-            // 6.3. Запускаем BAT через WMI
-            WmiBatRunner wmi = new WmiBatRunner(centralServer.getIp(), smbUser, smbPass, 60);
-            String result = wmi.runCommand("C:\\ae\\unload.bat");
-            AppLogger.info("WMI результат:\n" + result);
-
-            // 6.4. Проверка появления лога
             String logShare = remoteShare + "Log/";
-            AppLogger.info("Ожидаем запуска 1С (появления лог-файла)...");
-            
-            boolean logStarted = false;
-            int waitAttempts = 0;
-            int maxWaitAttempts = 15;
 
-            while (waitAttempts < maxWaitAttempts) {
-                Thread.sleep(1000);
-                waitAttempts++;
-                if (transfer.exists(logShare, logFileName)) {
-                    logStarted = true;
+            SmbFileTransfer transfer = new SmbFileTransfer(centralServer.getIp(), smbUser, smbPass);
+            transfer.mkdir(remoteShare, "Log");
+            transfer.uploadBytes(batContent.getBytes(Charset.forName("Cp1251")), remoteShare, "unload.bat");
+
+            File localLog = null;
+            int maxRetries = 3;
+
+            for (int attempt = 1; attempt <= maxRetries; attempt++) {
+                AppLogger.info("Попытка выгрузки " + attempt + " из " + maxRetries);
+                
+                String timestamp = new SimpleDateFormat("yyMMdd_HHmmss").format(new Date());
+                String logFileName = timestamp + "aelog.txt";
+                
+                String prmContent = "[General]\r\n" +
+                        "Output=c:\\ae\\Log\\" + logFileName + "\r\n" +
+                        "Quit=1\r\nAutoExchange=1\r\n[AutoExchange]\r\n" +
+                        "SharedMode=1\r\nWriteTo=" + writeToString + "\r\n";
+                transfer.uploadBytes(prmContent.getBytes(Charset.forName("Cp1251")), remoteShare, "aeparams.prm");
+
+                WmiBatRunner wmi = new WmiBatRunner(centralServer.getIp(), smbUser, smbPass, 60);
+                String result = wmi.runCommand("c:\\ae\\unload.bat");
+
+                long pid = -1;
+                String returnValue = "N/A";
+                java.util.regex.Matcher mPid = java.util.regex.Pattern.compile("ProcessId\\s*=\\s*(\\d+)").matcher(result);
+                if (mPid.find()) pid = Long.parseLong(mPid.group(1));
+                java.util.regex.Matcher mRet = java.util.regex.Pattern.compile("ReturnValue\\s*=\\s*(\\d+)").matcher(result);
+                if (mRet.find()) returnValue = mRet.group(1);
+
+                AppLogger.info("WMI запуск (" + centralServer.getName() + "): PID=" + pid + ", ReturnValue=" + returnValue);
+
+                boolean logStarted = false;
+                for (int i = 0; i < 15; i++) {
+                    Thread.sleep(1000);
+                    if (transfer.exists(logShare, logFileName)) {
+                        logStarted = true;
+                        break;
+                    }
+                }
+
+                if (!logStarted) {
+                    AppLogger.error("Лог-файл не появился (попытка " + attempt + "). Вероятно, блокировка.");
+                    if (attempt == maxRetries) {
+                        showWarning("Не удалось начать выгрузку. База заблокирована?");
+                        return;
+                    }
+                    Thread.sleep(10000);
+                    continue;
+                }
+
+                AppLogger.info("Лог-файл создан. 1С начала обмен. Ожидаем завершения...");
+                localLog = waitAndDownloadLog(transfer, logShare, logFileName, targets.size());
+
+                if (localLog != null) {
+                    AppLogger.info("Выгрузка успешно завершена с попытки " + attempt);
                     break;
+                } else {
+                    AppLogger.warn("Попытка " + attempt + " завершилась ошибкой (смотрите лог 1С).");
+                    if (attempt < maxRetries) {
+                        AppLogger.info("Ждем 10 секунд перед повтором...");
+                        Thread.sleep(10000);
+                    } else {
+                        AppLogger.error("Все " + maxRetries + " попытки провалились.");
+                        showWarning("Выгрузка не удалась после " + maxRetries + " попыток.");
+                        return;
+                    }
                 }
             }
 
-            if (!logStarted) {
-                AppLogger.error("Лог-файл не появился за 15 секунд. Вероятно, блокировка.");
-                showWarning("Не удалось начать выгрузку.\n\n" +
-                            "Файл лога не был создан в течение 15 секунд.\n" +
-                            "Вероятнее всего, база данных заблокирована запущенным Конфигуратором 1С.");
-                return;
-            }
+            boolean allSuccess = true;
 
-            // ==== 7. Ожидаем завершения и скачиваем лог ====
-            AppLogger.info("Лог-файл создан. 1С начала обмен. Ожидаем завершения...");
-            File localLog = waitAndDownloadLog(transfer, logShare, logFileName);
-
-            // ==== 8. Копируем файлы и загружаем на периферию ====
             if (localLog != null) {
                 AppLogger.info("Начинаем копирование и загрузку на периферийные серверы...");
+                Thread.sleep(3000); 
+                
                 for (ServerInfo peripheral : targets) {
                     if (isBlank(peripheral.getIp()) || isBlank(peripheral.getSmbUser())) {
                         AppLogger.warn("Пропуск " + peripheral.getName() + ": не заполнены данные для SMB.");
+                        allSuccess = false;
                         continue;
                     }
                     
-                    boolean copied = copyExchangeFile(centralServer, peripheral, peripheral.getDbSign());
+                    String zipFileName = peripheral.getDbSign().trim() + "0.zip";
+                    exportedFiles.add(zipFileName);
                     
+                    String centralShare = centralServer.getShareName();
+                    String centralCpPath = "smb://" + centralServer.getIp() + "/" + centralShare + "/CP/";
+                    SmbFileTransfer centralTransfer = new SmbFileTransfer(centralServer.getIp(), centralServer.getSmbUser(), centralServer.getSmbPassword());
+                    
+                    boolean fileFound = false;
+                    for (int i = 0; i < 15; i++) {
+                        if (centralTransfer.exists(centralCpPath, zipFileName)) {
+                            fileFound = true;
+                            break;
+                        }
+                        AppLogger.info("Ожидаем появления файла " + zipFileName + " на центральном сервере...");
+                        Thread.sleep(1000);
+                    }
+
+                    if (!fileFound) {
+                        AppLogger.error("Файл " + zipFileName + " так и не появился на центральном сервере.");
+                        allSuccess = false;
+                        continue;
+                    }
+                    
+                    boolean copied = copyExchangeFileCustom(centralServer, peripheral, zipFileName, "CP");
                     if (copied) {
-                        performLoadToPeriphery(peripheral, centralServer.getDbSign());
+                        boolean loadSuccess = performLoadToPeriphery(peripheral, centralServer.getDbSign());
+                        if (!loadSuccess) allSuccess = false;
+                    } else {
+                        allSuccess = false;
                     }
                 }
             } else {
+                allSuccess = false;
                 AppLogger.warn("Выгрузка не завершилась успешно, загрузка на периферию пропущена.");
             }
 
             AppLogger.info("==========================================================");
-            AppLogger.info("УСПЕШНОЕ ЗАВЕРШЕНИЕ ПРОЦЕССА ВЫГРУЗКИ");
+            if (allSuccess) {
+                AppLogger.info("УСПЕШНОЕ ЗАВЕРШЕНИЕ ПРОЦЕССА ВЫГРУЗКИ ИЗ ЦЕНТРА И ЗАГРУЗКИ В ПЕРИФЕРИЮ");
+            } else {
+                AppLogger.error("ПРОЦЕСС ЗАВЕРШЕН С ОШИБКАМИ (не все базы удалось загрузить)");
+            }
+            AppLogger.info("Файлы выгрузки: " + String.join(", ", exportedFiles));
             AppLogger.info("==========================================================");
 
         } catch (Exception e) {
             AppLogger.error("КРИТИЧЕСКАЯ ОШИБКА В ПРОЦЕССЕ ВЫГРУЗКИ: " + e.getMessage());
             e.printStackTrace();
-            showWarning("Ошибка выгрузки:\n" + e.getMessage());
         } finally {
             AppLogger.popOperationId(); 
         }
@@ -605,108 +561,46 @@ public class MainController {
             return;
         }
 
-        SelectChildServersWindow window = new SelectChildServersWindow(
-                getStage(),
-                "Выгрузка данных: " + centralServer.getName(),
-                children);
+        SelectChildServersWindow window = new SelectChildServersWindow(getStage(), "Выгрузка данных: " + centralServer.getName(), children);
         window.showAndWait();
 
         if (!window.isOkClicked()) return;
 
         List<ServerInfo> selected = window.getSelectedServers();
-        performUnload(centralServer, selected);
-    }
+        if (selected.isEmpty()) return;
 
-    /** Обработка "Загрузить данные" в контекстном меню. */
-    private void onLoadData(ServerInfo centralServer) {
-        List<ServerInfo> children = findChildren(centralServer);
-        if (children.isEmpty()) {
-            showWarning("У сервера \"" + centralServer.getName() + "\" нет подчинённых баз.");
-            return;
-        }
+        Task<Void> unloadTask = new Task<>() {
+            @Override
+            protected Void call() throws Exception {
+                performUnload(centralServer, selected);
+                return null;
+            }
+        };
 
-        SelectChildServersWindow window = new SelectChildServersWindow(
-                getStage(),
-                "Загрузка данных: " + centralServer.getName(),
-                children);
-        window.showAndWait();
+        unloadTask.setOnFailed(e -> {
+            Throwable ex = unloadTask.getException();
+            AppLogger.error("Критическая ошибка в фоновом потоке: " + ex.getMessage());
+            javafx.application.Platform.runLater(() -> showWarning("Произошла ошибка при выгрузке. Подробности в логе."));
+        });
 
-        if (!window.isOkClicked()) return;
-
-        List<ServerInfo> selected = window.getSelectedServers();
-        if (selected.isEmpty()) {
-            showWarning("Не выбрано ни одной базы.");
-            return;
-        }
-
-        // ЗАГЛУШКА: здесь будет реальная логика загрузки
-        StringBuilder msg = new StringBuilder("Загрузка для баз:\n");
-        for (ServerInfo s : selected) {
-            msg.append("  • ").append(s.getName())
-               .append(" (DBSIGN=").append(s.getDbSign()).append(")\n");
-        }
-        showInfo(msg.toString());
+        Thread thread = new Thread(unloadTask);
+        thread.setDaemon(true);
+        thread.start();
+        
+        AppLogger.info("Процесс выгрузки запущен в фоновом режиме.");
     }
     
-    /** Выгрузка для одного периферийного сервера (без окна выбора). */
-    private void onUnloadSingle(ServerInfo server) {
-        // ЗАГЛУШКА: здесь будет реальная логика выгрузки
-        showInfo("Выгрузка данных из периферии для центра:\n"
-                + "  • " + displayName(server)
-                + "\n  DBSIGN = " + server.getDbSign());
-    }
-
-    /** Загрузка для одного периферийного сервера (без окна выбора). */
-    private void onLoadSingle(ServerInfo server) {
-        // ЗАГЛУШКА: здесь будет реальная логика загрузки
-        showInfo("Загрузка данных в периферию из центра:\n"
-                + "  • " + displayName(server)
-                + "\n  DBSIGN = " + server.getDbSign());
-    }
-
-    /** Возвращает отображаемое имя сервера (name или dbSign, или заглушку). */
-    private String displayName(ServerInfo s) {
-        if (notBlank(s.getName())) return s.getName();
-        if (notBlank(s.getDbSign())) return s.getDbSign();
-        if (notBlank(s.getComputerName())) return s.getComputerName();
-        return "(без имени)";
-    }
-
-    /** Информационное сообщение. */
-    private void showInfo(String message) {
-        Alert alert = new Alert(Alert.AlertType.INFORMATION);
-        alert.setTitle("Информация");
-        alert.setHeaderText(null);
-        alert.setContentText(message);
-        alert.showAndWait();
-    }
-    
-    /**
-     * Ожидает появления и завершения записи лог-файла на сервере,
-     * затем скачивает его на локальный компьютер.
-     *
-     * @param transfer       SMB-подключение
-     * @param remoteShare    шара на сервере ("smb://host/ae$/")
-     * @param logFileName    имя лог-файла на сервере
-     * @return путь к скачанному файлу или null, если скачать не удалось
-     */
-    private File waitAndDownloadLog(SmbFileTransfer transfer, String remoteShare,
-                                    String logFileName) {
-        final int maxWaitSeconds = 30;     // максимум ждём 30 сек
-        final int stableSeconds = 5;        // считаем завершённым, если размер не менялся 5 сек
-        final int pollIntervalMs = 1000;    // проверяем раз в секунду
-
+    private File waitAndDownloadLog(SmbFileTransfer transfer, String remoteShare, String logFileName, int expectedOperations) {
+        final int maxWaitSeconds = 300; 
+        final int pollIntervalMs = 1000;
         long startTime = System.currentTimeMillis();
-        long lastSize = -1;
-        long lastChangeTime = System.currentTimeMillis();
-
-        AppLogger.info("Ожидаем появления лог-файла: " + logFileName);
+        
+        AppLogger.info("Ожидаем завершения работы 1С по лог-файлу: " + logFileName + " (ожидаем операций: " + expectedOperations + ")");
 
         while (true) {
-            // Проверка таймаута
             long elapsed = (System.currentTimeMillis() - startTime) / 1000;
             if (elapsed > maxWaitSeconds) {
-            	AppLogger.error("Таймаут ожидания лог-файла (" + maxWaitSeconds + " сек).");
+                AppLogger.error("Таймаут ожидания завершения 1С (" + maxWaitSeconds + " сек).");
                 return null;
             }
 
@@ -718,218 +612,187 @@ public class MainController {
             }
 
             try {
-                // Проверяем наличие файла
                 if (!transfer.exists(remoteShare, logFileName)) {
                     continue;
                 }
 
-                // Получаем размер файла
-                long size = transfer.getSize(remoteShare, logFileName);
+                String logContent = transfer.readFile(remoteShare, logFileName, "Cp866");
+                
+                int successCount = countOccurrences(logContent, "DistUplSuc") + countOccurrences(logContent, "DistDnldSuc");
+                int failCount = countOccurrences(logContent, "DistDnldFail") + countOccurrences(logContent, "DistUplFail") 
+                              + countOccurrences(logContent, "DistDnlErr") + countOccurrences(logContent, "DistUplErr");
 
-                if (size != lastSize) {
-                    lastSize = size;
-                    lastChangeTime = System.currentTimeMillis();
-                    AppLogger.info("Размер лог-файла: " + size + " байт");
-                } else {
-                    // Размер не менялся — возможно, 1С завершилась
-                    long stableFor = (System.currentTimeMillis() - lastChangeTime) / 1000;
-                    if (stableFor >= stableSeconds && size > 0) {
-                    	AppLogger.info("Лог-файл готов, скачиваем...");
-                        break;
-                    }
+                if (failCount > 0) {
+                    AppLogger.error("В лог-файле найден маркер ОШИБКИ. Прерываем ожидание.");
+                    return null;
                 }
+
+                if (successCount >= expectedOperations) {
+                    AppLogger.info("В лог-файле найдено " + successCount + " маркеров успешного завершения. Всё готово.");
+                    break;
+                }
+                
             } catch (Exception e) {
-            	AppLogger.error("Ошибка при проверке лог-файла: " + e.getMessage());
+                // Игнорируем
             }
         }
 
-        // Скачиваем файл
         try {
             File localDir = new File("D:\\ae\\Logs");
-            if (!localDir.exists()) {
-                localDir.mkdirs();
-            }
+            if (!localDir.exists()) localDir.mkdirs();
             String localPath = localDir.getAbsolutePath() + File.separator + logFileName;
             transfer.download(remoteShare, logFileName, localPath);
             AppLogger.info("Лог-файл 1С скачан с сервера: " + localPath);
             return new File(localPath);
         } catch (Exception e) {
-        	AppLogger.error("Не удалось скачать лог: " + e.getMessage());
+            AppLogger.error("Не удалось скачать лог: " + e.getMessage());
             return null;
         }
     }
-    
-    /**
-     * Копирует файл обмена (например, DS0.zip) с центральной базы на периферийную.
-     * @return true, если копирование прошло успешно, иначе false.
-     */
-    private boolean copyExchangeFile(ServerInfo centralServer, ServerInfo peripheralServer, String baseCode) {
-        String fileName = baseCode.trim() + "0.zip";
-        
-        // 1. Формируем SMB-пути к папкам CP
-        String centralShare = centralServer.getShareName();
-        String peripheralShare = peripheralServer.getShareName();
-        
-        if (centralShare == null || peripheralShare == null) {
-            AppLogger.error("Не удалось определить имя шары для копирования.");
-            return false;
+
+    private int countOccurrences(String text, String search) {
+        int count = 0;
+        int index = 0;
+        while ((index = text.indexOf(search, index)) != -1) {
+            count++;
+            index += search.length();
         }
+        return count;
+    }
+    
+    private boolean copyExchangeFileCustom(ServerInfo sourceServer, ServerInfo targetServer, String fileName, String folderName) {
+        String sourceShare = sourceServer.getShareName();
+        String targetShare = targetServer.getShareName();
+        
+        String sourcePath = "smb://" + sourceServer.getIp() + "/" + sourceShare + "/" + folderName + "/";
+        String targetPath = "smb://" + targetServer.getIp() + "/" + targetShare + "/" + folderName + "/";
 
-        String centralCpPath = "smb://" + centralServer.getIp() + "/" + centralShare + "/CP/";
-        String peripheralCpPath = "smb://" + peripheralServer.getIp() + "/" + peripheralShare + "/CP/";
-
-        // Временная папка на локальном компьютере
         File tempDir = new File("D:\\ae\\Temp");
         if (!tempDir.exists()) tempDir.mkdirs();
         String localTempFilePath = tempDir.getAbsolutePath() + File.separator + fileName;
 
-        boolean success = false; // Флаг успеха
-
         try {
-            AppLogger.info("Копирование " + fileName + " с " + centralServer.getComputerName() + " на " + peripheralServer.getComputerName());
-
-            SmbFileTransfer centralTransfer = new SmbFileTransfer(
-                    centralServer.getIp(), centralServer.getSmbUser(), centralServer.getSmbPassword());
-            
-            if (!centralTransfer.exists(centralCpPath, fileName)) {
-                showWarning("Файл обмена " + fileName + " не найден на центральном сервере.");
+            SmbFileTransfer sourceTransfer = new SmbFileTransfer(sourceServer.getIp(), sourceServer.getSmbUser(), sourceServer.getSmbPassword());
+            if (!sourceTransfer.exists(sourcePath, fileName)) {
+                AppLogger.error("Файл " + fileName + " не найден в папке " + folderName + " на " + sourceServer.getName());
                 return false;
             }
+            sourceTransfer.download(sourcePath, fileName, localTempFilePath);
 
-            centralTransfer.download(centralCpPath, fileName, localTempFilePath);
+            SmbFileTransfer targetTransfer = new SmbFileTransfer(targetServer.getIp(), targetServer.getSmbUser(), targetServer.getSmbPassword());
+            targetTransfer.upload(localTempFilePath, targetPath, fileName);
 
-            SmbFileTransfer peripheralTransfer = new SmbFileTransfer(
-                    peripheralServer.getIp(), peripheralServer.getSmbUser(), peripheralServer.getSmbPassword());
-            
-            peripheralTransfer.upload(localTempFilePath, peripheralCpPath, fileName);
-
-            AppLogger.info("Файл успешно скопирован на " + peripheralServer.getComputerName());
-            success = true; // Все прошло без ошибок
-
+            return true;
         } catch (Exception e) {
-            AppLogger.error("Ошибка копирования файла " + fileName + ": " + e.getMessage());
-            e.printStackTrace();
-            showWarning("Не удалось скопировать файл " + fileName + ".\n" + e.getMessage());
-            success = false;
+            AppLogger.error("Ошибка копирования " + fileName + ": " + e.getMessage());
+            return false;
         } finally {
-            // 4. Удаляем временный файл
             File tempFile = new File(localTempFilePath);
-            if (tempFile.exists()) {
-                tempFile.delete();
-            }
+            if (tempFile.exists()) tempFile.delete();
         }
-        
-        return success;
     }
  
-    /**
-     * Запускает процесс загрузки данных (обмена) на периферийном сервере.
-     */
-    private void performLoadToPeriphery(ServerInfo peripheralServer, String centralBaseCode) {
-        // Генерируем короткий ID для подоперации
+    private boolean performLoadToPeriphery(ServerInfo peripheralServer, String centralBaseCode) {
         String subOpId = "LD-" + (System.currentTimeMillis() % 1000);
         AppLogger.pushOperationId(subOpId);
+        boolean success = false;
 
         try {
-        	AppLogger.info("==========================================================");
-            AppLogger.info(">>> НАЧАЛО ЗАГРУЗКИ В ПЕРИФЕРИЙНУЮ БАЗУ: " + peripheralServer.getName() + " (DBSIGN: " + peripheralServer.getDbSign().trim() + ") <<<");
+            AppLogger.info("==========================================================");
+            AppLogger.info(">>> НАЧАЛО ЗАГРУЗКИ В ПЕРИФЕРИЙНУЮ БАЗУ: " + peripheralServer.getName() + " <<<");
             AppLogger.info("==========================================================");
 
             if (isBlank(peripheralServer.getProgram1CPath()) || isBlank(peripheralServer.getDatabasePath())) {
-                AppLogger.error("У периферийного сервера не заполнены пути к 1С или базе: " + peripheralServer.getName());
-                return;
+                AppLogger.error("У периферийного сервера не заполнены пути к 1С или базе.");
+                return false;
             }
             if (isBlank(centralBaseCode)) {
-                AppLogger.error("Не указан префикс центральной базы (DBSIGN). Загрузка невозможна.");
-                showWarning("У центральной базы не заполнен DBSIGN. Невозможно сформировать PRM-файл для загрузки.");
-                return;
+                AppLogger.error("Не указан префикс центральной базы (DBSIGN).");
+                javafx.application.Platform.runLater(() -> showWarning("У центральной базы не заполнен DBSIGN."));
+                return false;
             }
 
-            String timestamp = new SimpleDateFormat("yyMMdd_HHmmss").format(new Date());
-            String logFileName = timestamp + "aelog.txt";
             String aePath = "c:\\ae\\";
-
-            // 1. PRM-файл для ЗАГРУЗКИ
-            String prmContent =
-                    "[General]\r\n" +
-                    "Output=" + aePath + "Log\\" + logFileName + "\r\n" +
-                    "Quit=1\r\n" +
-                    "AutoExchange=1\r\n" +
-                    "[AutoExchange]\r\n" +
-                    "SharedMode=1\r\n" +
-                    "ReadFrom=" + centralBaseCode.trim() + "\r\n"; 
-
-            // 2. BAT-файл
-            String batContent =
-                    "@echo off\r\n" +
-                    "\"" + peripheralServer.getProgram1CPath() + "\" " +
-                    "config " +
-                    "/d\"" + peripheralServer.getDatabasePath() + "\" " +
-                    "/nAe " +
-                    "/pAe " +
-                    "/@" + aePath + "aeparams.prm\r\n";
-
             String smbUser = peripheralServer.getSmbUser();
             String smbPass = peripheralServer.getSmbPassword();
             String remoteShare = "smb://" + peripheralServer.getIp() + "/ae$/";
+            String logShare = remoteShare + "Log/";
+
+            String batContent = "@echo off\r\n" +
+                    "\"" + peripheralServer.getProgram1CPath() + "\" config " +
+                    "/d\"" + peripheralServer.getDatabasePath() + "\" /nAe /pAe " +
+                    "/@" + aePath + "aeparams.prm\r\n";
 
             SmbFileTransfer transfer = new SmbFileTransfer(peripheralServer.getIp(), smbUser, smbPass);
             transfer.mkdir(remoteShare, "Log");
+            transfer.uploadBytes(batContent.getBytes(Charset.forName("Cp1251")), remoteShare, "unload.bat");
 
-            transfer.uploadBytes(prmContent.getBytes(Charset.forName("Cp1251")), remoteShare, "aeparams.prm");
-            transfer.uploadBytes(batContent.getBytes(Charset.forName("Cp866")), remoteShare, "unload.bat");
+            File localLog = null;
+            int maxRetries = 3;
 
-            // Запускаем через WMI
-            WmiBatRunner wmi = new WmiBatRunner(peripheralServer.getIp(), smbUser, smbPass, 60);
-            String result = wmi.runCommand("c:\\ae\\unload.bat");
-            AppLogger.info("WMI результат (загрузка " + peripheralServer.getName() + "):\n" + result);
-
-            // Извлекаем ProcessId
-            long pid = -1;
-            java.util.regex.Matcher m = java.util.regex.Pattern.compile("ProcessId\\s*=\\s*(\\d+)").matcher(result);
-            if (m.find()) {
-                pid = Long.parseLong(m.group(1));
-            }
-
-            String logShare = remoteShare + "Log/";
-            boolean logStarted = false;
-            int maxWaitSeconds = 60;
-
-            AppLogger.info("Ожидаем появления лог-файла на " + peripheralServer.getName() + " (до " + maxWaitSeconds + " сек)...");
-
-            for (int i = 0; i < maxWaitSeconds; i++) {
-                Thread.sleep(1000);
+            for (int attempt = 1; attempt <= maxRetries; attempt++) {
+                AppLogger.info("Попытка загрузки " + attempt + " из " + maxRetries);
                 
-                if (transfer.exists(logShare, logFileName)) {
-                    logStarted = true;
-                    break;
-                }
+                String timestamp = new SimpleDateFormat("yyMMdd_HHmmss").format(new Date());
+                String logFileName = timestamp + "aelog.txt";
 
-                if (pid != -1 && i > 2) { 
-                    boolean alive = wmi.isProcessAliveById(pid);
-                    if (!alive) {
-                        AppLogger.warn("Процесс 1С (" + pid + ") завершился, но лог не создан. Вероятно, база заблокирована.");
+                String prmContent = "[General]\r\n" +
+                        "Output=" + aePath + "Log\\" + logFileName + "\r\n" +
+                        "Quit=1\r\nAutoExchange=1\r\n[AutoExchange]\r\n" +
+                        "SharedMode=1\r\nReadFrom=" + centralBaseCode.trim() + "\r\n"; 
+                transfer.uploadBytes(prmContent.getBytes(Charset.forName("Cp1251")), remoteShare, "aeparams.prm");
+
+                WmiBatRunner wmi = new WmiBatRunner(peripheralServer.getIp(), smbUser, smbPass, 60);
+                String result = wmi.runCommand("c:\\ae\\unload.bat");
+
+                long pid = -1;
+                String returnValue = "N/A";
+                java.util.regex.Matcher mPid = java.util.regex.Pattern.compile("ProcessId\\s*=\\s*(\\d+)").matcher(result);
+                if (mPid.find()) pid = Long.parseLong(mPid.group(1));
+                java.util.regex.Matcher mRet = java.util.regex.Pattern.compile("ReturnValue\\s*=\\s*(\\d+)").matcher(result);
+                if (mRet.find()) returnValue = mRet.group(1);
+
+                AppLogger.info("WMI запуск (" + peripheralServer.getName() + "): PID=" + pid + ", ReturnValue=" + returnValue);
+
+                boolean logStarted = false;
+                for (int i = 0; i < 30; i++) {
+                    Thread.sleep(1000);
+                    if (transfer.exists(logShare, logFileName)) {
+                        logStarted = true;
+                        break;
+                    }
+                    if (pid != -1 && i > 2 && !wmi.isProcessAliveById(pid)) {
+                        AppLogger.warn("Процесс 1С завершился, но лог не создан.");
                         break; 
                     }
                 }
-            }
 
-            if (!logStarted) {
-                AppLogger.error("Не удалось начать загрузку на " + peripheralServer.getName() + ". Лог-файл не появился.");
-                showWarning("Не удалось начать загрузку на " + peripheralServer.getName() + ".\n" +
-                            "Вероятно, база заблокирована запущенным Конфигуратором.");
-                return;
-            }
+                if (!logStarted) {
+                    AppLogger.error("Не удалось начать загрузку (попытка " + attempt + ").");
+                    if (attempt == maxRetries) {
+                        javafx.application.Platform.runLater(() -> showWarning("Не удалось начать загрузку на " + peripheralServer.getName()));
+                        return false;
+                    }
+                    Thread.sleep(10000);
+                    continue;
+                }
 
-            AppLogger.info("Лог-файл создан. Ожидаем завершения загрузки...");
-            File localLog = waitAndDownloadLog(transfer, logShare, logFileName);
-            
-            if (localLog != null) {
-                AppLogger.info("----------------------------------------------------------");
-                AppLogger.info(">>> ЗАГРУЗКА НА " + peripheralServer.getComputerName() + " УСПЕШНО ЗАВЕРШЕНА <<<");
-                AppLogger.info("----------------------------------------------------------");
-            } else {
-                AppLogger.error(">>> ОШИБКА: Не удалось скачать лог загрузки для " + peripheralServer.getComputerName() + " <<<");
+                AppLogger.info("Лог-файл создан. Ожидаем завершения загрузки...");
+                localLog = waitAndDownloadLog(transfer, logShare, logFileName, 1);
+                
+                if (localLog != null) {
+                    AppLogger.info(">>> ЗАГРУЗКА НА " + peripheralServer.getComputerName() + " УСПЕШНО ЗАВЕРШЕНА <<<");
+                    success = true;
+                    break;
+                } else {
+                    AppLogger.warn("Попытка загрузки " + attempt + " завершилась ошибкой.");
+                    if (attempt < maxRetries) {
+                        AppLogger.info("Ждем 10 секунд перед повтором...");
+                        Thread.sleep(10000);
+                    } else {
+                        AppLogger.error("Все " + maxRetries + " попытки провалились.");
+                    }
+                }
             }
 
         } catch (Exception e) {
@@ -937,6 +800,264 @@ public class MainController {
         } finally {
             AppLogger.popOperationId(); 
         }
+        return success;
     }
     
+    private void onUnloadPeriphery(ServerInfo peripheralServer) {
+        ServerInfo centralServer = null;
+        for (ServerInfo s : servers) {
+            if (s.getName() != null && s.getName().equals(peripheralServer.getParentName())) {
+                centralServer = s;
+                break;
+            }
+        }
+
+        if (centralServer == null) {
+            showWarning("Не найдена центральная база для " + peripheralServer.getName());
+            return;
+        }
+
+        final ServerInfo finalCentral = centralServer;
+
+        Task<Void> unloadTask = new Task<>() {
+            @Override
+            protected Void call() throws Exception {
+                performUnloadFromPeriphery(peripheralServer, finalCentral);
+                return null;
+            }
+        };
+
+        unloadTask.setOnFailed(e -> {
+            Throwable ex = unloadTask.getException();
+            AppLogger.error("Критическая ошибка в фоновом потоке: " + ex.getMessage());
+            javafx.application.Platform.runLater(() -> showWarning("Произошла ошибка при выгрузке из периферии. Подробности в логе."));
+        });
+
+        Thread thread = new Thread(unloadTask);
+        thread.setDaemon(true);
+        thread.start();
+    }
+    
+    private void performUnloadFromPeriphery(ServerInfo peripheralServer, ServerInfo centralServer) {
+        String mainOpId = "UP-" + (System.currentTimeMillis() % 100000);
+        AppLogger.pushOperationId(mainOpId);
+
+        try {
+            AppLogger.info("==========================================================");
+            AppLogger.info("НАЧАЛО ПРОЦЕССА ВЫГРУЗКИ ИЗ ПЕРИФЕРИИ: " + peripheralServer.getName());
+            AppLogger.info("Центральная база: " + centralServer.getName());
+            AppLogger.info("==========================================================");
+
+            if (isBlank(peripheralServer.getProgram1CPath()) || isBlank(peripheralServer.getDatabasePath())) {
+                AppLogger.error("У периферийного сервера не заполнены пути.");
+                return;
+            }
+            if (isBlank(peripheralServer.getSmbUser()) || isBlank(peripheralServer.getSmbPassword())) {
+                AppLogger.error("У периферийного сервера не заполнены логин/пароль SMB.");
+                return;
+            }
+
+            String timestamp = new SimpleDateFormat("yyMMdd_HHmmss").format(new Date());
+            String logFileName = timestamp + "aelog.txt";
+
+            String prmContent = "[General]\r\n" +
+                    "Output=c:\\ae\\Log\\" + logFileName + "\r\n" +
+                    "Quit=1\r\nAutoExchange=1\r\n[AutoExchange]\r\n" +
+                    "SharedMode=1\r\nWriteTo=" + centralServer.getDbSign().trim() + "\r\n";
+
+//            String batContent = "echo Hello > c:\\ae\\test.txt";
+            String batContent = "@echo off\r\n" +
+                    "\"" + peripheralServer.getProgram1CPath() + "\" config " +
+                    "/d\"" + peripheralServer.getDatabasePath() + "\" /nAe /pAe " +
+                    "/@c:\\ae\\aeparams.prm\r\n";
+//            String batContent = "@echo off\r\n" +
+//                    "cd /d " + peripheralServer.getDatabasePath().substring(0, 2) + "\r\n" +
+//                    "\"" + peripheralServer.getProgram1CPath() + "\" config " +
+//                    "/d\"" + peripheralServer.getDatabasePath() + "\" /nAe /pAe " +
+//                    "/@c:\\ae\\aeparams.prm > c:\\ae\\bat_debug.txt 2>&1\r\n";
+
+//            String batContent = "@echo off\r\n" +
+//                    "cd /d d:\r\n" +
+//                    "\"" + peripheralServer.getProgram1CPath() + "\" config " +
+//                    "/d\"" + peripheralServer.getDatabasePath() + "\" /nAe /pAe " +
+//                    "/@c:\\ae\\aeparams.prm\r\n" +
+//                    "echo ExitCode is %errorlevel% > c:\\ae\\bat_debug.txt\r\n";
+
+//            String batContent = "@echo off\r\n" +
+//                    "echo === START BAT === > c:\\ae\\bat_debug.txt\r\n" +
+//                    "echo PATH: " + peripheralServer.getDatabasePath() + " >> c:\\ae\\bat_debug.txt\r\n" +
+//                    "start /wait \"\" \"" + peripheralServer.getProgram1CPath() + "\" config " +
+//                    "/d\"" + peripheralServer.getDatabasePath() + "\" /nAe /pAe " +
+//                    "/@c:\\ae\\aeparams.prm >> c:\\ae\\bat_debug.txt 2>&1\r\n" +
+//                    "echo ExitCode is %errorlevel% >> c:\\ae\\bat_debug.txt\r\n" +
+//                    "echo === END BAT === >> c:\\ae\\bat_debug.txt\r\n";
+            
+//            String batContent = "@echo off\r\n" +
+//                    "echo === START BAT === > c:\\ae\\bat_debug.txt\r\n" +
+//                    "start \"\" /b \"c:\\Program Files (x86)\\1Cv77\\BIN\\1cv7s.exe\" config " +
+//                    "/d\"" + peripheralServer.getDatabasePath() + "\" /nAe /pAe " +
+//                    "/@c:\\ae\\aeparams.prm\r\n" +
+//                    "echo ExitCode is %errorlevel% >> c:\\ae\\bat_debug.txt\r\n";
+            
+            String smbUser = peripheralServer.getSmbUser();
+            String smbPass = peripheralServer.getSmbPassword();
+            String remoteShare = "smb://" + peripheralServer.getIp() + "/ae$/";
+
+            SmbFileTransfer transfer = new SmbFileTransfer(peripheralServer.getIp(), smbUser, smbPass);
+            transfer.mkdir(remoteShare, "Log");
+            transfer.uploadBytes(prmContent.getBytes(Charset.forName("Cp1251")), remoteShare, "aeparams.prm");
+            transfer.uploadBytes(batContent.getBytes(Charset.forName("Cp866")), remoteShare, "unload.bat");
+
+            WmiBatRunner wmi = new WmiBatRunner(peripheralServer.getIp(), smbUser, smbPass, 60);
+            String result = wmi.runCommand("c:\\ae\\unload.bat");
+            //String result = wmi.runCommand("c:\\ae\\psexec.exe -accepteula -i -u svarog\\admin-db -p \"22@dMIN22\" c:\\ae\\unload.bat");
+
+            long pid = -1;
+            String returnValue = "N/A";
+            java.util.regex.Matcher mPid = java.util.regex.Pattern.compile("ProcessId\\s*=\\s*(\\d+)").matcher(result);
+            if (mPid.find()) pid = Long.parseLong(mPid.group(1));
+            java.util.regex.Matcher mRet = java.util.regex.Pattern.compile("ReturnValue\\s*=\\s*(\\d+)").matcher(result);
+            if (mRet.find()) returnValue = mRet.group(1);
+
+            AppLogger.info("WMI запуск (" + peripheralServer.getName() + "): PID=" + pid + ", ReturnValue=" + returnValue);
+
+            String logShare = remoteShare + "Log/";
+            boolean logStarted = false;
+            for (int i = 0; i < 15; i++) {
+                Thread.sleep(1000);
+                if (transfer.exists(logShare, logFileName)) {
+                    logStarted = true;
+                    break;
+                }
+            }
+
+            if (!logStarted) {
+                AppLogger.error("Не удалось начать выгрузку на " + peripheralServer.getName() + ". База заблокирована?");
+                return;
+            }
+
+            AppLogger.info("Лог-файл создан. Ожидаем завершения выгрузки...");
+            waitAndDownloadLog(transfer, logShare, logFileName, 1);
+
+            String fileName = peripheralServer.getDbSign().trim() + "1.zip";
+            
+            AppLogger.info("Начинаем копирование " + fileName + " на центральный сервер...");
+            boolean copied = copyExchangeFileCustom(peripheralServer, centralServer, fileName, "PC");
+            
+            boolean allSuccess = true;
+            if (copied) {
+                boolean loadSuccess = performLoadToCenter(centralServer, peripheralServer);
+                if (!loadSuccess) allSuccess = false;
+            } else {
+                allSuccess = false;
+            }
+
+            AppLogger.info("==========================================================");
+            if (allSuccess) {
+                AppLogger.info("УСПЕШНОЕ ЗАВЕРШЕНИЕ ПРОЦЕССА ВЫГРУЗКИ ИЗ ПЕРИФЕРИИ И ЗАГРУЗКИ В ЦЕНТР");
+            } else {
+                AppLogger.error("ПРОЦЕСС ЗАВЕРШЕН С ОШИБКАМИ (не удалось загрузить в центр)");
+            }
+            AppLogger.info("Файл выгрузки: " + fileName);
+            AppLogger.info("==========================================================");
+
+        } catch (Exception e) {
+            AppLogger.error("КРИТИЧЕСКАЯ ОШИБКА: " + e.getMessage());
+        } finally {
+            AppLogger.popOperationId();
+        }
+    }
+    
+    private boolean performLoadToCenter(ServerInfo centralServer, ServerInfo peripheralServer) {
+        String subOpId = "LC-" + (System.currentTimeMillis() % 1000);
+        AppLogger.pushOperationId(subOpId);
+        boolean success = false;
+
+        try {
+            AppLogger.info(">>> НАЧАЛО ЗАГРУЗКИ В ЦЕНТРАЛЬНУЮ БАЗУ: " + centralServer.getName() + " <<<");
+
+            String smbUser = centralServer.getSmbUser();
+            String smbPass = centralServer.getSmbPassword();
+            String remoteShare = "smb://" + centralServer.getIp() + "/ae$/";
+            String logShare = remoteShare + "Log/";
+
+            String batContent = "@echo off\r\n" +
+                    "\"" + centralServer.getProgram1CPath() + "\" config " +
+                    "/d\"" + centralServer.getDatabasePath() + "\" /nAe /pAe " +
+                    "/@c:\\ae\\aeparams.prm\r\n";
+
+            SmbFileTransfer transfer = new SmbFileTransfer(centralServer.getIp(), smbUser, smbPass);
+            transfer.mkdir(remoteShare, "Log");
+            transfer.uploadBytes(batContent.getBytes(Charset.forName("Cp1251")), remoteShare, "unload.bat");
+
+            File localLog = null;
+            int maxRetries = 3;
+
+            for (int attempt = 1; attempt <= maxRetries; attempt++) {
+                AppLogger.info("Попытка загрузки в центр " + attempt + " из " + maxRetries);
+                
+                String timestamp = new SimpleDateFormat("yyMMdd_HHmmss").format(new Date());
+                String logFileName = timestamp + "aelog.txt";
+
+                String prmContent = "[General]\r\n" +
+                        "Output=c:\\ae\\Log\\" + logFileName + "\r\n" +
+                        "Quit=1\r\nAutoExchange=1\r\n[AutoExchange]\r\n" +
+                        "SharedMode=1\r\nReadFrom=" + peripheralServer.getDbSign().trim() + "\r\n";
+                transfer.uploadBytes(prmContent.getBytes(Charset.forName("Cp1251")), remoteShare, "aeparams.prm");
+
+                WmiBatRunner wmi = new WmiBatRunner(centralServer.getIp(), smbUser, smbPass, 60);
+                String result = wmi.runCommand("c:\\ae\\unload.bat");
+
+                long pid = -1;
+                String returnValue = "N/A";
+                java.util.regex.Matcher mPid = java.util.regex.Pattern.compile("ProcessId\\s*=\\s*(\\d+)").matcher(result);
+                if (mPid.find()) pid = Long.parseLong(mPid.group(1));
+                java.util.regex.Matcher mRet = java.util.regex.Pattern.compile("ReturnValue\\s*=\\s*(\\d+)").matcher(result);
+                if (mRet.find()) returnValue = mRet.group(1);
+
+                AppLogger.info("WMI запуск (" + centralServer.getName() + "): PID=" + pid + ", ReturnValue=" + returnValue);
+
+                boolean logStarted = false;
+                for (int i = 0; i < 60; i++) {
+                    Thread.sleep(1000);
+                    if (transfer.exists(logShare, logFileName)) {
+                        logStarted = true;
+                        break;
+                    }
+                    if (pid != -1 && i > 2 && !wmi.isProcessAliveById(pid)) {
+                        break;
+                    }
+                }
+
+                if (!logStarted) {
+                    AppLogger.error("Не удалось начать загрузку в центр (попытка " + attempt + ").");
+                    if (attempt == maxRetries) return false;
+                    Thread.sleep(10000);
+                    continue;
+                }
+
+                localLog = waitAndDownloadLog(transfer, logShare, logFileName, 1);
+                
+                if (localLog != null) {
+                    AppLogger.info(">>> ЗАГРУЗКА В ЦЕНТР УСПЕШНО ЗАВЕРШЕНА <<<");
+                    success = true;
+                    break;
+                } else {
+                    AppLogger.warn("Попытка загрузки в центр " + attempt + " завершилась ошибкой.");
+                    if (attempt < maxRetries) {
+                        AppLogger.info("Ждем 10 секунд перед повтором...");
+                        Thread.sleep(10000);
+                    } else {
+                        AppLogger.error("Все " + maxRetries + " попытки провалились.");
+                    }
+                }
+            }
+
+        } catch (Exception e) {
+            AppLogger.error("Ошибка при загрузке в центр: " + e.getMessage());
+        } finally {
+            AppLogger.popOperationId();
+        }
+        return success;
+    }
 }

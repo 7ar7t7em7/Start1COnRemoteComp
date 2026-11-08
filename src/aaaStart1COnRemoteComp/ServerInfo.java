@@ -36,6 +36,9 @@ public class ServerInfo {
 
     /** Пароль для SMB и WMI */
     private String smbPassword;
+    
+    /** true = запуск через PsExec, false = запуск через WMI */
+    private boolean usePsExec;
 
     // ===== Конструкторы =====
 
@@ -129,6 +132,9 @@ this.central = central;
     public void setCentral(boolean central) {
         this.central = central;
     }
+    
+    public boolean isUsePsExec() { return usePsExec; }
+    public void setUsePsExec(boolean usePsExec) { this.usePsExec = usePsExec; }
 
     // ===== Удобные методы =====
 

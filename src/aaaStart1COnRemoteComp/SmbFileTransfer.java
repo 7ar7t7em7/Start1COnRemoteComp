@@ -131,4 +131,21 @@ public class SmbFileTransfer {
         jcifs.smb.SmbFile file = new jcifs.smb.SmbFile(remoteSharePath + remoteFileName, auth);
         return file.length();
     }
+    
+    /**
+     * Читает текстовый файл с удаленного сервера.
+     */
+    public String readFile(String remoteSharePath, String remoteFileName, String charsetName) throws Exception {
+        jcifs.smb.SmbFile file = new jcifs.smb.SmbFile(remoteSharePath + remoteFileName, auth);
+        try (java.io.InputStream is = file.getInputStream();
+             java.io.ByteArrayOutputStream baos = new java.io.ByteArrayOutputStream()) {
+            
+            byte[] buffer = new byte[4096];
+            int len;
+            while ((len = is.read(buffer)) != -1) {
+                baos.write(buffer, 0, len);
+            }
+            return baos.toString(charsetName); // Лог 1С в Cp866
+        }
+    }
 }

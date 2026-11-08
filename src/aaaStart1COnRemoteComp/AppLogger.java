@@ -84,13 +84,12 @@ public class AppLogger {
             System.out.print(formattedMessage);
         }
 
-        // 2. Вывод в UI (если окно открыто)
+        // 2. Вывод в UI (только через UI-поток)
         if (uiLogArea != null) {
-            // Обновлять UI можно только из потока JavaFX
+            String finalMessage = formattedMessage.toString();
             Platform.runLater(() -> {
-                uiLogArea.appendText(formattedMessage.toString());
-                // Автоматическая прокрутка вниз
-                uiLogArea.setScrollTop(Double.MAX_VALUE);
+                uiLogArea.appendText(finalMessage);
+                uiLogArea.setScrollTop(Double.MAX_VALUE); // Прокрутка вниз
             });
         }
         
