@@ -438,17 +438,9 @@ public class MainController {
                         "SharedMode=1\r\nWriteTo=" + writeToString + "\r\n";
                 transfer.uploadBytes(prmContent.getBytes(Charset.forName("Cp1251")), remoteShare, "aeparams.prm");
 
-                WmiBatRunner wmi = new WmiBatRunner(centralServer.getIp(), smbUser, smbPass, 60);
-                String result = wmi.runCommand("c:\\ae\\unload.bat");
-
-                long pid = -1;
-                String returnValue = "N/A";
-                java.util.regex.Matcher mPid = java.util.regex.Pattern.compile("ProcessId\\s*=\\s*(\\d+)").matcher(result);
-                if (mPid.find()) pid = Long.parseLong(mPid.group(1));
-                java.util.regex.Matcher mRet = java.util.regex.Pattern.compile("ReturnValue\\s*=\\s*(\\d+)").matcher(result);
-                if (mRet.find()) returnValue = mRet.group(1);
-
-                AppLogger.info("WMI запуск (" + centralServer.getName() + "): PID=" + pid + ", ReturnValue=" + returnValue);
+                // ИСПОЛЬЗУЕМ НОВЫЙ МЕТОД ЗАПУСКА
+                String result = runRemoteBat(centralServer, "c:\\ae\\unload.bat");
+                AppLogger.info("Результат запуска BAT: " + result);
 
                 boolean logStarted = false;
                 for (int i = 0; i < 15; i++) {
@@ -742,28 +734,16 @@ public class MainController {
                         "SharedMode=1\r\nReadFrom=" + centralBaseCode.trim() + "\r\n"; 
                 transfer.uploadBytes(prmContent.getBytes(Charset.forName("Cp1251")), remoteShare, "aeparams.prm");
 
-                WmiBatRunner wmi = new WmiBatRunner(peripheralServer.getIp(), smbUser, smbPass, 60);
-                String result = wmi.runCommand("c:\\ae\\unload.bat");
-
-                long pid = -1;
-                String returnValue = "N/A";
-                java.util.regex.Matcher mPid = java.util.regex.Pattern.compile("ProcessId\\s*=\\s*(\\d+)").matcher(result);
-                if (mPid.find()) pid = Long.parseLong(mPid.group(1));
-                java.util.regex.Matcher mRet = java.util.regex.Pattern.compile("ReturnValue\\s*=\\s*(\\d+)").matcher(result);
-                if (mRet.find()) returnValue = mRet.group(1);
-
-                AppLogger.info("WMI запуск (" + peripheralServer.getName() + "): PID=" + pid + ", ReturnValue=" + returnValue);
+                // ИСПОЛЬЗУЕМ НОВЫЙ МЕТОД ЗАПУСКА
+                String result = runRemoteBat(peripheralServer, "c:\\ae\\unload.bat");
+                AppLogger.info("Результат запуска BAT: " + result);
 
                 boolean logStarted = false;
-                for (int i = 0; i < 30; i++) {
+                for (int i = 0; i < 10; i++) {
                     Thread.sleep(1000);
                     if (transfer.exists(logShare, logFileName)) {
                         logStarted = true;
                         break;
-                    }
-                    if (pid != -1 && i > 2 && !wmi.isProcessAliveById(pid)) {
-                        AppLogger.warn("Процесс 1С завершился, но лог не создан.");
-                        break; 
                     }
                 }
 
@@ -865,40 +845,11 @@ public class MainController {
                     "Quit=1\r\nAutoExchange=1\r\n[AutoExchange]\r\n" +
                     "SharedMode=1\r\nWriteTo=" + centralServer.getDbSign().trim() + "\r\n";
 
-//            String batContent = "echo Hello > c:\\ae\\test.txt";
             String batContent = "@echo off\r\n" +
                     "\"" + peripheralServer.getProgram1CPath() + "\" config " +
                     "/d\"" + peripheralServer.getDatabasePath() + "\" /nAe /pAe " +
                     "/@c:\\ae\\aeparams.prm\r\n";
-//            String batContent = "@echo off\r\n" +
-//                    "cd /d " + peripheralServer.getDatabasePath().substring(0, 2) + "\r\n" +
-//                    "\"" + peripheralServer.getProgram1CPath() + "\" config " +
-//                    "/d\"" + peripheralServer.getDatabasePath() + "\" /nAe /pAe " +
-//                    "/@c:\\ae\\aeparams.prm > c:\\ae\\bat_debug.txt 2>&1\r\n";
 
-//            String batContent = "@echo off\r\n" +
-//                    "cd /d d:\r\n" +
-//                    "\"" + peripheralServer.getProgram1CPath() + "\" config " +
-//                    "/d\"" + peripheralServer.getDatabasePath() + "\" /nAe /pAe " +
-//                    "/@c:\\ae\\aeparams.prm\r\n" +
-//                    "echo ExitCode is %errorlevel% > c:\\ae\\bat_debug.txt\r\n";
-
-//            String batContent = "@echo off\r\n" +
-//                    "echo === START BAT === > c:\\ae\\bat_debug.txt\r\n" +
-//                    "echo PATH: " + peripheralServer.getDatabasePath() + " >> c:\\ae\\bat_debug.txt\r\n" +
-//                    "start /wait \"\" \"" + peripheralServer.getProgram1CPath() + "\" config " +
-//                    "/d\"" + peripheralServer.getDatabasePath() + "\" /nAe /pAe " +
-//                    "/@c:\\ae\\aeparams.prm >> c:\\ae\\bat_debug.txt 2>&1\r\n" +
-//                    "echo ExitCode is %errorlevel% >> c:\\ae\\bat_debug.txt\r\n" +
-//                    "echo === END BAT === >> c:\\ae\\bat_debug.txt\r\n";
-            
-//            String batContent = "@echo off\r\n" +
-//                    "echo === START BAT === > c:\\ae\\bat_debug.txt\r\n" +
-//                    "start \"\" /b \"c:\\Program Files (x86)\\1Cv77\\BIN\\1cv7s.exe\" config " +
-//                    "/d\"" + peripheralServer.getDatabasePath() + "\" /nAe /pAe " +
-//                    "/@c:\\ae\\aeparams.prm\r\n" +
-//                    "echo ExitCode is %errorlevel% >> c:\\ae\\bat_debug.txt\r\n";
-            
             String smbUser = peripheralServer.getSmbUser();
             String smbPass = peripheralServer.getSmbPassword();
             String remoteShare = "smb://" + peripheralServer.getIp() + "/ae$/";
@@ -908,18 +859,9 @@ public class MainController {
             transfer.uploadBytes(prmContent.getBytes(Charset.forName("Cp1251")), remoteShare, "aeparams.prm");
             transfer.uploadBytes(batContent.getBytes(Charset.forName("Cp866")), remoteShare, "unload.bat");
 
-            WmiBatRunner wmi = new WmiBatRunner(peripheralServer.getIp(), smbUser, smbPass, 60);
-            String result = wmi.runCommand("c:\\ae\\unload.bat");
-            //String result = wmi.runCommand("c:\\ae\\psexec.exe -accepteula -i -u svarog\\admin-db -p \"22@dMIN22\" c:\\ae\\unload.bat");
-
-            long pid = -1;
-            String returnValue = "N/A";
-            java.util.regex.Matcher mPid = java.util.regex.Pattern.compile("ProcessId\\s*=\\s*(\\d+)").matcher(result);
-            if (mPid.find()) pid = Long.parseLong(mPid.group(1));
-            java.util.regex.Matcher mRet = java.util.regex.Pattern.compile("ReturnValue\\s*=\\s*(\\d+)").matcher(result);
-            if (mRet.find()) returnValue = mRet.group(1);
-
-            AppLogger.info("WMI запуск (" + peripheralServer.getName() + "): PID=" + pid + ", ReturnValue=" + returnValue);
+            // ИСПОЛЬЗУЕМ НОВЫЙ МЕТОД ЗАПУСКА
+            String result = runRemoteBat(peripheralServer, "c:\\ae\\unload.bat");
+            AppLogger.info("Результат запуска BAT: " + result);
 
             String logShare = remoteShare + "Log/";
             boolean logStarted = false;
@@ -1005,26 +947,15 @@ public class MainController {
                         "SharedMode=1\r\nReadFrom=" + peripheralServer.getDbSign().trim() + "\r\n";
                 transfer.uploadBytes(prmContent.getBytes(Charset.forName("Cp1251")), remoteShare, "aeparams.prm");
 
-                WmiBatRunner wmi = new WmiBatRunner(centralServer.getIp(), smbUser, smbPass, 60);
-                String result = wmi.runCommand("c:\\ae\\unload.bat");
-
-                long pid = -1;
-                String returnValue = "N/A";
-                java.util.regex.Matcher mPid = java.util.regex.Pattern.compile("ProcessId\\s*=\\s*(\\d+)").matcher(result);
-                if (mPid.find()) pid = Long.parseLong(mPid.group(1));
-                java.util.regex.Matcher mRet = java.util.regex.Pattern.compile("ReturnValue\\s*=\\s*(\\d+)").matcher(result);
-                if (mRet.find()) returnValue = mRet.group(1);
-
-                AppLogger.info("WMI запуск (" + centralServer.getName() + "): PID=" + pid + ", ReturnValue=" + returnValue);
+                // ИСПОЛЬЗУЕМ НОВЫЙ МЕТОД ЗАПУСКА
+                String result = runRemoteBat(centralServer, "c:\\ae\\unload.bat");
+                AppLogger.info("Результат запуска BAT: " + result);
 
                 boolean logStarted = false;
                 for (int i = 0; i < 60; i++) {
                     Thread.sleep(1000);
                     if (transfer.exists(logShare, logFileName)) {
                         logStarted = true;
-                        break;
-                    }
-                    if (pid != -1 && i > 2 && !wmi.isProcessAliveById(pid)) {
                         break;
                     }
                 }
@@ -1059,5 +990,66 @@ public class MainController {
             AppLogger.popOperationId();
         }
         return success;
+    }
+    
+    /**
+     * Запускает BAT-файл на удаленном сервере (через PsExec или WMI).
+     */
+    private String runRemoteBat(ServerInfo server, String remoteBatPath) throws Exception {
+        if (server.isUsePsExec()) {
+            // === ЗАПУСК ЧЕРЕЗ PSEXEC (в интерактивной сессии) ===
+            String psexecPath = "D:\\ae\\Utils\\PSTools\\PsExec.exe"; // ПУТЬ НА ВАШЕМ ПК
+            
+            List<String> cmdList = new ArrayList<>();
+            cmdList.add(psexecPath);
+            cmdList.add("-accepteula");
+            cmdList.add("-i"); // Интерактивная сессия
+            cmdList.add("\\\\" + server.getIp());
+            cmdList.add("-u");
+            cmdList.add(server.getSmbUser());
+            cmdList.add("-p");
+            cmdList.add(server.getSmbPassword());
+            cmdList.add(remoteBatPath);
+
+            ProcessBuilder pb = new ProcessBuilder(cmdList);
+            pb.redirectErrorStream(true);
+            Process process = pb.start();
+
+            StringBuilder output = new StringBuilder();
+            try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                    new java.io.InputStreamReader(process.getInputStream(), "Cp866"))) {
+                String line;
+                while ((line = reader.readLine()) != null) {
+                    output.append(line).append(System.lineSeparator());
+                }
+            }
+            
+            boolean finished = process.waitFor(120, java.util.concurrent.TimeUnit.SECONDS);
+            if (!finished) {
+                process.destroyForcibly();
+                return "PsExec: Таймаут выполнения";
+            }
+            
+            int exitCode = process.exitValue();
+            return "PsExec (ExitCode=" + exitCode + "): " + output.toString().trim().replace("\r\n", " ");
+            
+        } else {
+            // === ЗАПУСК ЧЕРЕЗ WMI ===
+            WmiBatRunner wmi = new WmiBatRunner(server.getIp(), server.getSmbUser(), server.getSmbPassword(), 60);
+            String rawResult = wmi.runCommand(remoteBatPath);
+            
+            // Извлекаем ProcessId и ReturnValue для короткого вывода
+            long pid = -1;
+            String returnValue = "N/A";
+            
+            java.util.regex.Matcher mPid = java.util.regex.Pattern.compile("ProcessId\\s*=\\s*(\\d+)").matcher(rawResult);
+            if (mPid.find()) pid = Long.parseLong(mPid.group(1));
+            
+            java.util.regex.Matcher mRet = java.util.regex.Pattern.compile("ReturnValue\\s*=\\s*(\\d+)").matcher(rawResult);
+            if (mRet.find()) returnValue = mRet.group(1);
+            
+            // Возвращаем чистую строку
+            return "WMI (PID=" + pid + ", ReturnValue=" + returnValue + ")";
+        }
     }
 }

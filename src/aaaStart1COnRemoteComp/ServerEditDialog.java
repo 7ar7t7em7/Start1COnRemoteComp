@@ -76,6 +76,7 @@ public class ServerEditDialog {
         databaseNameField = new TextField();
         parentComboBox = new ComboBox<>();  
         centralCheckBox = new CheckBox("Центральный сервер");
+        usePsExecCheckBox = new CheckBox("Использовать PsExec (обход блокировки WMI)");
         smbUserField = new TextField();
         smbUserField.setMaxWidth(Double.MAX_VALUE);
         smbPasswordField = new PasswordField();
@@ -94,6 +95,7 @@ public class ServerEditDialog {
         grid.add(new Label("Пароль SMB/WMI:"), 0, 9);
         grid.add(smbPasswordField, 1, 9);
         grid.add(centralCheckBox, 1, 10);
+        grid.add(usePsExecCheckBox, 1, 11);
 
         // ==== Кнопки ====
         Button okButton = new Button("OK");
@@ -158,6 +160,7 @@ public class ServerEditDialog {
             parentComboBox.setValue(server.getParentName());
             smbUserField.setText(server.getSmbUser());
             smbPasswordField.setText(server.getSmbPassword());
+            usePsExecCheckBox.setSelected(server.isUsePsExec());
         }
     }
 
@@ -202,6 +205,7 @@ public class ServerEditDialog {
         s.setParentName(parentComboBox.getValue());
         s.setSmbUser(smbUserField.getText());
         s.setSmbPassword(smbPasswordField.getText());
+        s.setUsePsExec(usePsExecCheckBox.isSelected());
     }
 
     public boolean isOkClicked() {
