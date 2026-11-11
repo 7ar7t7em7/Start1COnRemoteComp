@@ -35,13 +35,16 @@ public class MainController {
         
         jcifs.Config.setProperty("jcifs.smb.client.attrExpirationPeriod", "0");
         
-        // ==== Корневой узел (невидимый) ====\n        TreeItem<ServerInfo> root = new TreeItem<>(null);
+        // ==== Корневой узел (невидимый) ====
+        TreeItem<ServerInfo> root = new TreeItem<>(null);
         root.setExpanded(true);
         treeView.setRoot(root);
         treeView.setShowRoot(false);
 
-        // ==== Отображение узлов ====\n        treeView.setCellFactory(_ -> {
-            TreeCell<ServerInfo> cell = new TreeCell<>() {
+        // ==== Отображение узлов ====
+        treeView.setCellFactory(_ -> {
+            // Явно указываем тип TreeCell<ServerInfo>, чтобы Eclipse не ругался
+            TreeCell<ServerInfo> cell = new TreeCell<ServerInfo>() {
                 @Override
                 protected void updateItem(ServerInfo item, boolean empty) {
                     super.updateItem(item, empty);
@@ -94,14 +97,16 @@ public class MainController {
             return cell;
         });
 
-        // ==== Слушаем изменение выделения ====\n        treeView.getSelectionModel().selectedItemProperty().addListener(
+        // ==== Слушаем изменение выделения ====
+        treeView.getSelectionModel().selectedItemProperty().addListener(
                 (_, _, newVal) -> {
                     ServerInfo s = (newVal == null) ? null : newVal.getValue();
                     updateReadDbButtonState(s);
                 });
         readDbButton.setDisable(true);
 
-        // ==== Загружаем данные ====\n        try {
+        // ==== Загружаем данные ====
+        try {
             servers.addAll(ServerStorage.load());
             rebuildTree();
         } catch (IOException e) {

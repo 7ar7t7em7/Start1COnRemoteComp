@@ -108,8 +108,15 @@ public class LogMonitor {
                 Thread.currentThread().interrupt();
                 return false;
             }
-            if (transfer.exists(remoteShare, logFileName)) {
-                return true;
+            
+            try {
+                if (transfer.exists(remoteShare, logFileName)) {
+                    return true;
+                }
+            } catch (Exception e) {
+                // Если произошла ошибка сети или SMB, просто игнорируем её 
+                // и пробуем проверить файл еще раз в следующей итерации цикла
+                // AppLogger.warn("Ожидание лога: " + e.getMessage());
             }
         }
         return false;

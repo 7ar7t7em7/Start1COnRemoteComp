@@ -294,12 +294,20 @@ public class ExchangeService {
 
             boolean fileFound = false;
             for (int i = 0; i < COPY_POLL_SECONDS; i++) {
-                if (centralTransfer.exists(centralCpPath, zipFileName)) {
-                    fileFound = true;
-                    break;
+                try {
+                    if (centralTransfer.exists(centralCpPath, zipFileName)) {
+                        fileFound = true;
+                        break;
+                    }
+                } catch (Exception e) {
+                    // Игнорируем ошибки SMB при проверке, пробуем в следующий раз
+                    AppLogger.warn("Ошибка проверки файла " + zipFileName + ": " + e.getMessage());
                 }
+                
                 AppLogger.info("Ожидаем появления файла " + zipFileName + " на центральном сервере...");
-                try { Thread.sleep(COPY_POLL_INTERVAL_MS); } catch (InterruptedException e) {
+                try { 
+                    Thread.sleep(COPY_POLL_INTERVAL_MS); 
+                } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
                 }

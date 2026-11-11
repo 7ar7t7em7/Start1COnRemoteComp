@@ -61,7 +61,7 @@ public class RemoteExecutor {
         cmdList.add(PSEXEC_PATH);
         cmdList.add("-accepteula");
         cmdList.add("-i");
-        cmdList.add("\\" + server.getIp());
+        cmdList.add("\\\\" + server.getIp()); // <-- ИСПРАВЛЕНО ЗДЕСЬ (4 слэша)
         cmdList.add("-u");
         cmdList.add(server.getSmbUser());
         cmdList.add("-p");
