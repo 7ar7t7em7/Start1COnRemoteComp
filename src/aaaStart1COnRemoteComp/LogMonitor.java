@@ -87,8 +87,14 @@ public class LogMonitor {
             if (!localDir.exists()) localDir.mkdirs();
             String localPath = localDir.getAbsolutePath() + File.separator + logFileName;
             transfer.download(remoteShare, logFileName, localPath);
-            AppLogger.info("Лог-файл 1С скачан с сервера: " + localPath);
-            return new LogResult(new File(localPath), true, null);
+            
+            File downloadedFile = new File(localPath);
+            long sizeInBytes = downloadedFile.length();
+            // Переводим в КБ (или оставляем в байтах, как удобнее)
+            long sizeInKb = sizeInBytes / 1024;
+            
+            AppLogger.info("Лог-файл 1С скачан с сервера: " + localPath + " (Размер: " + sizeInKb + " КБ)");
+            return new LogResult(downloadedFile, true, null);
         } catch (Exception e) {
             AppLogger.error("Не удалось скачать лог: " + e.getMessage());
             return new LogResult(null, false, "Не удалось скачать лог: " + e.getMessage());

@@ -2,43 +2,44 @@
 
 <?import javafx.geometry.Insets?>
 <?import javafx.scene.control.Button?>
+<?import javafx.scene.control.ListView?>
 <?import javafx.scene.control.TreeView?>
 <?import javafx.scene.layout.BorderPane?>
 <?import javafx.scene.layout.HBox?>
+<?import javafx.scene.layout.VBox?>
+<?import javafx.scene.control.SplitPane?>
 
 <BorderPane xmlns="http://javafx.com/javafx"
             xmlns:fx="http://javafx.com/fxml"
             fx:controller="aaaStart1COnRemoteComp.MainController">
 
+    <!-- Центральная часть - разделитель -->
     <center>
-        <TreeView fx:id="treeView" />
+        <SplitPane orientation="VERTICAL" dividerPositions="0.65">
+            
+            <!-- Верхняя панель: Дерево серверов -->
+            <TreeView fx:id="treeView" />
+
+            <!-- Нижняя панель: Лог и кнопки -->
+            <VBox>
+                <!-- Лог (растягивается на все доступное место в VBox) -->
+                <ListView fx:id="logArea" 
+                          style="-fx-font-family: 'Consolas', monospace; -fx-font-size: 11px;"
+                          VBox.vgrow="ALWAYS" />
+                
+                <!-- Кнопки внизу -->
+                <HBox spacing="10" alignment="CENTER_LEFT">
+                    <padding>
+                        <Insets top="10" right="10" bottom="10" left="10"/>
+                    </padding>
+                    <Button fx:id="addButton" text="Добавить" onAction="#onAdd"/>
+                    <Button fx:id="editButton" text="Редактировать" onAction="#onEdit"/>
+                    <Button fx:id="deleteButton" text="Удалить" onAction="#onDelete"/>
+                    <Button fx:id="readDbButton" text="Прочитать БД" onAction="#onReadDatabase"/>
+                </HBox>
+            </VBox>
+
+        </SplitPane>
     </center>
 
-<?import javafx.scene.control.TextArea?>
-<?import javafx.scene.layout.Priority?>
-<?import javafx.scene.layout.VBox?>
-
-<!-- ... верхняя часть с TreeView ... -->
-
-    <bottom>
-        <VBox>
-            <!-- Лог -->
-            <TextArea fx:id="logArea" 
-                      editable="false" 
-                      wrapText="true" 
-                      prefHeight="150" 
-                      style="-fx-font-family: 'Consolas', monospace; -fx-font-size: 11px;" />
-            
-            <!-- Кнопки -->
-            <HBox spacing="10" alignment="CENTER_LEFT">
-                <padding>
-                    <Insets top="10" right="10" bottom="10" left="10"/>
-                </padding>
-                <Button fx:id="addButton" text="Добавить" onAction="#onAdd"/>
-                <Button fx:id="editButton" text="Редактировать" onAction="#onEdit"/>
-                <Button fx:id="deleteButton" text="Удалить" onAction="#onDelete"/>
-                <Button fx:id="readDbButton" text="Прочитать БД" onAction="#onReadDatabase"/>
-            </HBox>
-        </VBox>
-    </bottom>
 </BorderPane>

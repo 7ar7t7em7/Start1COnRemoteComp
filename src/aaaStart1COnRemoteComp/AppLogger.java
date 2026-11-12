@@ -10,19 +10,28 @@ import java.util.Stack;
 
 import javafx.application.Platform;
 import javafx.scene.control.TextArea;
+import javafx.application.Platform;
+import javafx.collections.FXCollections;
+import javafx.collections.ObservableList;
+import javafx.scene.control.ListView;
 
 public class AppLogger {
 
     private static final String LOG_DIR = "D:\\ae\\Logs";
     private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd");
     private static final SimpleDateFormat TIME_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+    private static final int MAX_LOG_LINES = 1000;
     
-    // Ссылка на текстовое поле в интерфейсе
-    private static TextArea uiLogArea = null;
+    
+    private static ListView<String> uiLogList = null;
+    private static final ObservableList<String> uiLogData = FXCollections.observableArrayList();
 
-    /** Устанавливает текстовое поле для вывода логов в UI. */
-    public static void setUiLogArea(TextArea textArea) {
-        uiLogArea = textArea;
+    /** Устанавливает список для вывода логов в UI. */
+    public static void setUiLogArea(ListView<String> listView) {
+        uiLogList = listView;
+        if (uiLogList != null) {
+            uiLogList.setItems(uiLogData);
+        }
     }
 
     // Храним стек ID операций для текущего потока (для поддержки вложенности)
@@ -84,12 +93,19 @@ public class AppLogger {
             System.out.print(formattedMessage);
         }
 
-        // 2. Вывод в UI (только через UI-поток)
-        if (uiLogArea != null) {
-            String finalMessage = formattedMessage.toString();
+        // 2. Вывод в UI (если окно открыто)
+        if (uiLogList != null) {
+            String finalMessage = formattedMessage.toString().trim(); // убираем лишние переносы в конце
             Platform.runLater(() -> {
-                uiLogArea.appendText(finalMessage);
-                uiLogArea.setScrollTop(Double.MAX_VALUE); // Прокрутка вниз
+                uiLogData.add(finalMessage);
+                
+                // Если превысили лимит — удаляем самые старые строки
+                if (uiLogData.size() > MAX_LOG_LINES) {
+                    uiLogData.remove(0, uiLogData.size() - MAX_LOG_LINES);
+                }
+                
+                // Автоматическая прокрутка вниз
+                uiLogList.scrollTo(uiLogData.size() - 1);
             });
         }
         

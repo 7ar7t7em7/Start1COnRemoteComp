@@ -7,6 +7,7 @@ import javafx.fxml.FXML;
 import javafx.scene.control.*;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
+import javafx.scene.control.SelectionMode;
 import javafx.stage.Stage;
 
 import java.io.IOException;
@@ -22,15 +23,74 @@ public class MainController {
     @FXML
     private Button readDbButton;
     
-    @FXML
-    private javafx.scene.control.TextArea logArea;
+    @FXML 
+    private ListView<String> logArea;
 
     private final ObservableList<ServerInfo> servers = FXCollections.observableArrayList();
 
     @FXML
     private void initialize() {
         // Связываем UI с логгером
-        AppLogger.setUiLogArea(logArea);
+    	AppLogger.setUiLogArea(logArea);
+    	
+        // Настройка ячейки для лога
+        logArea.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE); // Разрешаем множественное выделение
+        
+        logArea.setCellFactory(lv -> {
+            ListCell<String> cell = new ListCell<>() {
+                @Override
+                protected void updateItem(String item, boolean empty) {
+                    super.updateItem(item, empty);
+                    if (empty || item == null) {
+                        setText(null);
+                        setStyle("");
+                    } else {
+                        setText(item);
+                        if (item.contains("[ERROR]")) {
+                            setStyle("-fx-text-fill: red;");
+                        } else if (item.contains("[WARN]")) {
+                            setStyle("-fx-text-fill: orange;");
+                        } else {
+                            setStyle("");
+                        }
+                    }
+                }
+            };
+
+            // Создаем контекстное меню
+            ContextMenu cellMenu = new ContextMenu();
+            
+            // Пункт 1: Копировать одну строку
+            MenuItem copySingleItem = new MenuItem("Копировать строку");
+            copySingleItem.setOnAction(e -> {
+                if (cell.getItem() != null) {
+                    copyToClipboard(cell.getItem());
+                }
+            });
+
+            // Пункт 2: Копировать всё выделенное
+            MenuItem copySelectedItem = new MenuItem("Копировать выделенное");
+            copySelectedItem.setOnAction(e -> {
+                List<String> selectedItems = logArea.getSelectionModel().getSelectedItems();
+                if (!selectedItems.isEmpty()) {
+                    copyToClipboard(String.join("\n", selectedItems));
+                }
+            });
+            
+            // Пункт 3: Копировать весь лог
+            MenuItem copyAllItem = new MenuItem("Копировать весь лог");
+            copyAllItem.setOnAction(e -> {
+                if (!logArea.getItems().isEmpty()) {
+                    copyToClipboard(String.join("\n", logArea.getItems()));
+                }
+            });
+
+            cellMenu.getItems().addAll(copySingleItem, copySelectedItem, copyAllItem);
+            cell.setContextMenu(cellMenu);
+
+            return cell;
+        });
+
         AppLogger.info("Приложение запущено.");
         
         jcifs.Config.setProperty("jcifs.smb.client.attrExpirationPeriod", "0");
@@ -448,5 +508,13 @@ public class MainController {
         Thread thread = new Thread(unloadTask);
         thread.setDaemon(true);
         thread.start();
+    }
+    
+    /** Вспомогательный метод для копирования текста в буфер обмена. */
+    private void copyToClipboard(String text) {
+        javafx.scene.input.Clipboard clipboard = javafx.scene.input.Clipboard.getSystemClipboard();
+        javafx.scene.input.ClipboardContent content = new javafx.scene.input.ClipboardContent();
+        content.putString(text);
+        clipboard.setContent(content);
     }
 }

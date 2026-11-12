@@ -380,7 +380,7 @@ public class ExchangeService {
                 LogMonitor.LogResult logResult = LogMonitor.waitAndDownload(transfer, logShare, logFileName, 1);
 
                 if (logResult.isSuccess()) {
-                    AppLogger.info(">>> ЗАГРУЗКА НА " + peripheralServer.getComputerName() + " УСПЕШНО ЗАВЕРШЕНА <<<");
+                    AppLogger.info(">>> ЗАГРУЗКА НА " + peripheralServer.getName() + " УСПЕШНО ЗАВЕРШЕНА <<<");
                     return new ExchangeResult(true, "Загрузка на периферию завершена успешно");
                 } else {
                     AppLogger.warn("Попытка загрузки " + attempt + " завершилась ошибкой.");
@@ -417,13 +417,25 @@ public class ExchangeService {
                 AppLogger.error("Файл " + fileName + " не найден в папке " + folderName + " на " + sourceServer.getName());
                 return false;
             }
+            
+            // Скачиваем
             sourceTransfer.download(sourcePath, fileName, localTempFilePath);
+            
+            // Получаем размер скачанного файла
+            File localFile = new File(localTempFilePath);
+            long sizeInBytes = localFile.length();
+            long sizeInKb = sizeInBytes / 1024;
+            
+            AppLogger.info("Скачан файл обмена: " + fileName + " (Размер: " + sizeInKb + " КБ) с " + sourceServer.getName());
 
+            // Загружаем
             SmbFileTransfer targetTransfer = new SmbFileTransfer(targetServer.getIp(),
                     targetServer.getSmbUser(), targetServer.getSmbPassword());
             targetTransfer.upload(localTempFilePath, targetPath, fileName);
-
+            
+            AppLogger.info("Файл " + fileName + " успешно отправлен на " + targetServer.getName());
             return true;
+            
         } catch (Exception e) {
             AppLogger.error("Ошибка копирования " + fileName + ": " + e.getMessage());
             return false;
