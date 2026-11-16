@@ -136,8 +136,11 @@ public class MainController {
                         
                         MenuItem editItem = new MenuItem("Редактировать");
                         editItem.setOnAction(e -> editServer(item));
+                        
+                        MenuItem pingItem = new MenuItem("Проверка доступности");
+                        pingItem.setOnAction(e -> onPingServer(item));
 
-                        ContextMenu menu = new ContextMenu(exchangeItem, new SeparatorMenuItem(), editItem);
+                        ContextMenu menu = new ContextMenu(exchangeItem, new SeparatorMenuItem(), pingItem, editItem);
                         setContextMenu(menu);
                     }
                 }
@@ -446,13 +449,12 @@ public class MainController {
 
         Task<Void> unloadTask = new Task<>() {
             @Override
-            protected Void call() throws Exception {
+            protected Void call() {
                 ExchangeService.ExchangeResult result = ExchangeService.unloadFromCentral(centralServer, selected);
-                javafx.application.Platform.runLater(() -> {
-                    if (!result.isSuccess()) {
-                        showWarning(result.getMessage());
-                    }
-                });
+                if (!result.isSuccess()) {
+                    // Убрали showWarning, просто дублируем ошибку в лог (если она не была залогирована)
+                    AppLogger.error("Процесс завершен с ошибкой: " + result.getMessage());
+                }
                 return null;
             }
         };
@@ -471,6 +473,7 @@ public class MainController {
     }
     
     private void onUnloadPeriphery(ServerInfo peripheralServer) {
+        // Ищем центральную базу для этой периферии
         ServerInfo centralServer = null;
         for (ServerInfo s : servers) {
             if (s.getName() != null && s.getName().equals(peripheralServer.getParentName())) {
@@ -488,13 +491,12 @@ public class MainController {
 
         Task<Void> unloadTask = new Task<>() {
             @Override
-            protected Void call() throws Exception {
+            protected Void call() {
+                // Вызываем метод для выгрузки ИЗ ПЕРИФЕРИИ, передавая центральную базу
                 ExchangeService.ExchangeResult result = ExchangeService.unloadFromPeriphery(peripheralServer, finalCentral);
-                javafx.application.Platform.runLater(() -> {
-                    if (!result.isSuccess()) {
-                        showWarning(result.getMessage());
-                    }
-                });
+                if (!result.isSuccess()) {
+                    AppLogger.error("Процесс завершен с ошибкой: " + result.getMessage());
+                }
                 return null;
             }
         };
@@ -502,6 +504,7 @@ public class MainController {
         unloadTask.setOnFailed(e -> {
             Throwable ex = unloadTask.getException();
             AppLogger.error("Критическая ошибка в фоновом потоке: " + ex.getMessage());
+            // Если хотите убрать окно и здесь, закомментируйте строку ниже
             javafx.application.Platform.runLater(() -> showWarning("Произошла ошибка при выгрузке из периферии. Подробности в логе."));
         });
 
@@ -516,5 +519,48 @@ public class MainController {
         javafx.scene.input.ClipboardContent content = new javafx.scene.input.ClipboardContent();
         content.putString(text);
         clipboard.setContent(content);
+    }
+    
+    private void onPingServer(ServerInfo server) {
+        if (isBlank(server.getIp())) {
+            showWarning("У сервера \"" + server.getName() + "\" не заполнен IP-адрес.");
+            return;
+        }
+
+        AppLogger.info("--- Проверка доступности: " + server.getName() + " (" + server.getIp() + ") ---");
+
+        Task<Void> pingTask = new Task<>() {
+            @Override
+            protected Void call() throws Exception {
+                // Используем системный ping (надежнее для Windows)
+                ProcessBuilder pb = new ProcessBuilder("ping", "-n", "1", "-w", "2000", server.getIp());
+                pb.redirectErrorStream(true);
+                Process process = pb.start();
+                
+                StringBuilder output = new StringBuilder();
+                try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                        new java.io.InputStreamReader(process.getInputStream(), "Cp866"))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        output.append(line);
+                    }
+                }
+                
+                process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS);
+                String result = output.toString();
+                
+                if (result.contains("TTL=") || result.contains("ttl=") || result.contains("время=") || result.contains("time=")) {
+                    AppLogger.info("✅ Сервер " + server.getIp() + " ДОСТУПЕН (Ping прошел успешно).");
+                } else {
+                    AppLogger.warn("❌ Сервер " + server.getIp() + " НЕДОСТУПЕН (Ping не прошел).");
+                }
+                
+                return null;
+            }
+        };
+
+        Thread thread = new Thread(pingTask);
+        thread.setDaemon(true);
+        thread.start();
     }
 }

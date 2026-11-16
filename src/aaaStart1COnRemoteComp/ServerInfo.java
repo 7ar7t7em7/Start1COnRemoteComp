@@ -39,6 +39,8 @@ public class ServerInfo {
     
     /** true = запуск через PsExec, false = запуск через WMI */
     private boolean usePsExec;
+    
+    private String shareName; // Имя сетевой шары (например, "1c_Rub")
 
     // ===== Конструкторы =====
 
@@ -171,19 +173,27 @@ this.central = central;
      * Например: для "D:\Work_bases\Crimea_2026_Rub\" вернёт "Crimea_2026_Rub$"
      */
     public String getShareName() {
+        // Если имя шары задано вручную — возвращаем его
+        if (shareName != null && !shareName.isBlank()) {
+            return shareName;
+        }
+        
+        // Иначе вычисляем автоматически из пути к базе
         if (databasePath == null || databasePath.isBlank()) return null;
-        // Убираем слэши в конце
         String path = databasePath;
         while (path.endsWith("\\") || path.endsWith("/")) {
             path = path.substring(0, path.length() - 1);
         }
-        // Ищем последний слэш
         int lastSlash = path.lastIndexOf("\\");
         if (lastSlash == -1) lastSlash = path.lastIndexOf("/");
-        if (lastSlash == -1) return path + "$"; // Если слэшей нет, берем всю строку
+        if (lastSlash == -1) return path + "$";
         
         String folderName = path.substring(lastSlash + 1);
         return folderName + "$";
+    }
+    
+    public void setShareName(String shareName) {
+        this.shareName = shareName;
     }
     
 }

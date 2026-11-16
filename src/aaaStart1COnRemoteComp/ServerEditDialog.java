@@ -35,12 +35,8 @@ public class ServerEditDialog {
     private TextField smbUserField;
     private PasswordField smbPasswordField;
     private CheckBox usePsExecCheckBox;
+    private TextField shareNameField; // НОВОЕ ПОЛЕ: Имя шары
 
-    /**
-     * @param owner       родительское окно
-     * @param server      объект для редактирования; null — создаём новый
-     * @param readOnly    true — только просмотр (кнопки сохранения нет)
-     */
     public ServerEditDialog(Stage owner, ServerInfo server, boolean readOnly, List<String> possibleParents) {
         this.server = server;
         this.stage = new Stage();
@@ -48,39 +44,30 @@ public class ServerEditDialog {
         stage.initModality(Modality.WINDOW_MODAL);
         stage.setTitle(readOnly ? "Просмотр сервера" : (server == null ? "Новый сервер" : "Редактирование сервера"));
 
-        // ==== Форма ====
         GridPane grid = new GridPane();
         grid.setPadding(new Insets(10));
         grid.setHgap(10);
         grid.setVgap(8);
 
-     // ==== Растягивание колонок ====
         ColumnConstraints col0 = new ColumnConstraints();
         col0.setMinWidth(150);
         ColumnConstraints col1 = new ColumnConstraints();
         col1.setHgrow(Priority.ALWAYS);
         grid.getColumnConstraints().addAll(col0, col1);
         
-        dbSignField = new TextField();
-        dbSignField.setMaxWidth(Double.MAX_VALUE);
-        nameField = new TextField();
-        nameField.setMaxWidth(Double.MAX_VALUE);
-        computerNameField = new TextField();
-        computerNameField.setMaxWidth(Double.MAX_VALUE);
-        ipField = new TextField();
-        ipField.setMaxWidth(Double.MAX_VALUE);
-        program1CPathField = new TextField();
-        program1CPathField.setMaxWidth(Double.MAX_VALUE);
-        databasePathField = new TextField();
-        databasePathField.setMaxWidth(Double.MAX_VALUE);
-        databaseNameField = new TextField();
+        dbSignField = new TextField(); dbSignField.setMaxWidth(Double.MAX_VALUE);
+        nameField = new TextField(); nameField.setMaxWidth(Double.MAX_VALUE);
+        computerNameField = new TextField(); computerNameField.setMaxWidth(Double.MAX_VALUE);
+        ipField = new TextField(); ipField.setMaxWidth(Double.MAX_VALUE);
+        program1CPathField = new TextField(); program1CPathField.setMaxWidth(Double.MAX_VALUE);
+        databasePathField = new TextField(); databasePathField.setMaxWidth(Double.MAX_VALUE);
+        databaseNameField = new TextField(); databaseNameField.setMaxWidth(Double.MAX_VALUE);
         parentComboBox = new ComboBox<>();  
         centralCheckBox = new CheckBox("Центральный сервер");
         usePsExecCheckBox = new CheckBox("Использовать PsExec (обход блокировки WMI)");
-        smbUserField = new TextField();
-        smbUserField.setMaxWidth(Double.MAX_VALUE);
-        smbPasswordField = new PasswordField();
-        smbPasswordField.setMaxWidth(Double.MAX_VALUE);
+        smbUserField = new TextField(); smbUserField.setMaxWidth(Double.MAX_VALUE);
+        smbPasswordField = new PasswordField(); smbPasswordField.setMaxWidth(Double.MAX_VALUE);
+        shareNameField = new TextField(); shareNameField.setMaxWidth(Double.MAX_VALUE); // Инициализация поля шары
         
         grid.add(new Label("Наименование:"), 0, 0);   grid.add(nameField, 1, 0);
         grid.add(new Label("Имя компьютера:"), 0, 1); grid.add(computerNameField, 1, 1);
@@ -90,14 +77,15 @@ public class ServerEditDialog {
         grid.add(new Label("Имя БД:"), 0, 5);         grid.add(databaseNameField, 1, 5);
         grid.add(new Label("DBSIGN:"), 0, 6);         grid.add(dbSignField, 1, 6);
         grid.add(new Label("Родитель:"), 0, 7);       grid.add(parentComboBox, 1, 7);
-        grid.add(new Label("Логин SMB/WMI:"), 0, 8);
-        grid.add(smbUserField, 1, 8);
-        grid.add(new Label("Пароль SMB/WMI:"), 0, 9);
-        grid.add(smbPasswordField, 1, 9);
-        grid.add(centralCheckBox, 1, 10);
-        grid.add(usePsExecCheckBox, 1, 11);
+        grid.add(new Label("Логин SMB/WMI:"), 0, 8);  grid.add(smbUserField, 1, 8);
+        grid.add(new Label("Пароль SMB/WMI:"), 0, 9); grid.add(smbPasswordField, 1, 9);
+        
+        // Добавляем поле имени шары
+        grid.add(new Label("Имя шары (SMB):"), 0, 10); grid.add(shareNameField, 1, 10);
+        
+        grid.add(centralCheckBox, 1, 11);
+        grid.add(usePsExecCheckBox, 1, 12);
 
-        // ==== Кнопки ====
         Button okButton = new Button("OK");
         Button cancelButton = new Button("Отмена");
 
@@ -113,26 +101,15 @@ public class ServerEditDialog {
         buttons.setPadding(new Insets(10, 10, 10, 10));
 
         javafx.scene.layout.VBox root = new javafx.scene.layout.VBox(grid, buttons);
-        Scene scene = new Scene(root, 480, 460); // у вас могут быть другие размеры
+        Scene scene = new Scene(root, 480, 520); // Увеличили высоту
         stage.setScene(scene);
         
-     // ==== Горячие клавиши ====
-     // 1. Отмена по Esc (работает всегда, даже в режиме просмотра)
-     scene.getAccelerators().put(
-         new KeyCodeCombination(KeyCode.ESCAPE),
-         () -> stage.close()
-     );
-
-  // 2. Сохранение по Enter (работает только если не режим просмотра)
-     if (!readOnly) {
-         scene.getAccelerators().put(
-             new KeyCodeCombination(KeyCode.ENTER),
-             () -> okButton.fire() 
-         );
-     }
+        scene.getAccelerators().put(new KeyCodeCombination(KeyCode.ESCAPE), () -> stage.close());
+        if (!readOnly) {
+            scene.getAccelerators().put(new KeyCodeCombination(KeyCode.ENTER), () -> okButton.fire());
+        }
 
         if (readOnly) {
-            // Запрещаем редактирование
             computerNameField.setEditable(false);
             ipField.setEditable(false);
             program1CPathField.setEditable(false);
@@ -145,11 +122,11 @@ public class ServerEditDialog {
             parentComboBox.setDisable(true);
             smbUserField.setEditable(false);
             smbPasswordField.setEditable(false);
+            shareNameField.setEditable(false);
         }
 
-        // Заполняем поля, если объект передан
         if (server != null) {
-        	nameField.setText(server.getName());
+            nameField.setText(server.getName());
             computerNameField.setText(server.getComputerName());
             ipField.setText(server.getIp());
             program1CPathField.setText(server.getProgram1CPath());
@@ -161,29 +138,19 @@ public class ServerEditDialog {
             smbUserField.setText(server.getSmbUser());
             smbPasswordField.setText(server.getSmbPassword());
             usePsExecCheckBox.setSelected(server.isUsePsExec());
+            shareNameField.setText(server.getShareName()); // Загружаем имя шары
         }
     }
 
-    /** Валидация: обязательные поля не должны быть пустыми */
     private boolean isInputValid() {
         String error = "";
+        if (dbSignField.getText() == null || dbSignField.getText().isBlank()) error += "Не заполнен DBSIGN.\n";
+        if (nameField.getText() == null || nameField.getText().isBlank()) error += "Не заполнено наименование.\n";
+        if (computerNameField.getText() == null || computerNameField.getText().isBlank()) error += "Не заполнено имя компьютера.\n";
+        if (ipField.getText() == null || ipField.getText().isBlank()) error += "Не заполнен IP-адрес.\n";
         
-        if (dbSignField.getText() == null || dbSignField.getText().isBlank()) {
-            error += "Не заполнен DBSIGN.\n";
-        }
-        if (nameField.getText() == null || nameField.getText().isBlank()) {
-            error += "Не заполнено наименование.\n";
-        }
+        if (error.isEmpty()) return true;
         
-        if (computerNameField.getText() == null || computerNameField.getText().isBlank()) {
-            error += "Не заполнено имя компьютера.\n";
-        }
-        if (ipField.getText() == null || ipField.getText().isBlank()) {
-            error += "Не заполнен IP-адрес.\n";
-        }
-        if (error.isEmpty()) {
-            return true;
-        }
         Alert alert = new Alert(Alert.AlertType.ERROR);
         alert.setTitle("Ошибка ввода");
         alert.setHeaderText("Заполните обязательные поля");
@@ -192,9 +159,8 @@ public class ServerEditDialog {
         return false;
     }
 
-    /** Переносит данные из полей в объект ServerInfo */
     public void applyToServer(ServerInfo s) {
-    	s.setName(nameField.getText());
+        s.setName(nameField.getText());
         s.setComputerName(computerNameField.getText());
         s.setIp(ipField.getText());
         s.setProgram1CPath(program1CPathField.getText());
@@ -206,13 +172,9 @@ public class ServerEditDialog {
         s.setSmbUser(smbUserField.getText());
         s.setSmbPassword(smbPasswordField.getText());
         s.setUsePsExec(usePsExecCheckBox.isSelected());
+        s.setShareName(shareNameField.getText()); // Сохраняем имя шары
     }
 
-    public boolean isOkClicked() {
-        return okClicked;
-    }
-
-    public void showAndWait() {
-        stage.showAndWait();
-    }
+    public boolean isOkClicked() { return okClicked; }
+    public void showAndWait() { stage.showAndWait(); }
 }

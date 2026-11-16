@@ -148,4 +148,33 @@ public class SmbFileTransfer {
             return baos.toString(charsetName); // Лог 1С в Cp866
         }
     }
+    
+    /**
+     * Проверяет, существует ли указанная шара на сервере.
+     * @param shareName имя шары (например, "ae$")
+     * @return true, если шара существует и доступна, иначе false
+     */
+    public boolean shareExists(String shareName) {
+        try {
+            // Подключаемся к корню сервера
+            jcifs.smb.SmbFile server = new jcifs.smb.SmbFile("smb://" + host + "/", auth);
+            // Получаем список всех шар
+            String[] shares = server.list();
+            
+            if (shares == null) return false;
+            
+            for (String share : shares) {
+                // JCIFS обычно возвращает имена с завершающим слэшем, например "ae$/"
+                // Убираем слэш для точного сравнения
+                String cleanShare = share.endsWith("/") ? share.substring(0, share.length() - 1) : share;
+                if (cleanShare.equalsIgnoreCase(shareName)) {
+                    return true;
+                }
+            }
+        } catch (Exception e) {
+            // Если произошла ошибка (нет прав, нет сети), считаем, что шары нет
+            System.err.println("Ошибка при проверке шары: " + e.getMessage());
+        }
+        return false;
+    }
 }
