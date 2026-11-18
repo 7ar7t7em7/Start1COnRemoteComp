@@ -11,14 +11,20 @@ import javafx.scene.control.SelectionMode;
 import javafx.stage.Stage;
 
 import java.io.IOException;
+import java.io.File;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
 public class MainController {
 
-    @FXML
-    private TreeView<ServerInfo> treeView;
+	@FXML
+	private TreeTableView<ServerInfo> treeTableView;
+
+	@FXML
+	private TreeTableColumn<ServerInfo, String> colName;
+	@FXML
+	private TreeTableColumn<ServerInfo, String> colLast;
 
     @FXML
     private Button readDbButton;
@@ -31,11 +37,11 @@ public class MainController {
     @FXML
     private void initialize() {
         // Связываем UI с логгером
-    	AppLogger.setUiLogArea(logArea);
-    	
+        AppLogger.setUiLogArea(logArea);
+
         // Настройка ячейки для лога
         logArea.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE); // Разрешаем множественное выделение
-        
+
         logArea.setCellFactory(lv -> {
             ListCell<String> cell = new ListCell<>() {
                 @Override
@@ -59,7 +65,7 @@ public class MainController {
 
             // Создаем контекстное меню
             ContextMenu cellMenu = new ContextMenu();
-            
+
             // Пункт 1: Копировать одну строку
             MenuItem copySingleItem = new MenuItem("Копировать строку");
             copySingleItem.setOnAction(e -> {
@@ -76,7 +82,7 @@ public class MainController {
                     copyToClipboard(String.join("\n", selectedItems));
                 }
             });
-            
+
             // Пункт 3: Копировать весь лог
             MenuItem copyAllItem = new MenuItem("Копировать весь лог");
             copyAllItem.setOnAction(e -> {
@@ -92,76 +98,141 @@ public class MainController {
         });
 
         AppLogger.info("Приложение запущено.");
-        
+
         jcifs.Config.setProperty("jcifs.smb.client.attrExpirationPeriod", "0");
-        
+
         // ==== Корневой узел (невидимый) ====
         TreeItem<ServerInfo> root = new TreeItem<>(null);
         root.setExpanded(true);
-        treeView.setRoot(root);
-        treeView.setShowRoot(false);
+        treeTableView.setRoot(root);
+        treeTableView.setShowRoot(false);
 
-        // ==== Отображение узлов ====
-        treeView.setCellFactory(_ -> {
-            // Явно указываем тип TreeCell<ServerInfo>, чтобы Eclipse не ругался
-            TreeCell<ServerInfo> cell = new TreeCell<ServerInfo>() {
-                @Override
-                protected void updateItem(ServerInfo item, boolean empty) {
-                    super.updateItem(item, empty);
-                    if (empty || item == null) {
-                        setText(null);
-                        setStyle("");
-                        setContextMenu(null);
+        // ==== Колонки: фабрики значений ====
+        colName.setCellValueFactory(p -> {
+            ServerInfo s = p.getValue().getValue();
+            String display = "";
+            if (s != null) {
+                display = s.getName();
+                if (display == null || display.isBlank()) {
+                    display = s.getComputerName() != null ? s.getComputerName() : "(без имени)";
+                }
+            }
+            return new javafx.beans.property.SimpleStringProperty(display);
+        });
+
+        colLast.setCellValueFactory(p -> {
+            ServerInfo s = p.getValue().getValue();
+            return new javafx.beans.property.SimpleStringProperty(s == null ? "" : getLastInfo(s));
+        });
+        
+        colLast.setCellFactory(_ -> new TreeTableCell<ServerInfo, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                if (empty || item == null) {
+                    setText(null);
+                } else {
+                    setText(item);
+                }
+                setAlignment(javafx.geometry.Pos.CENTER);
+            }
+        });
+        colLast.setStyle("-fx-alignment: CENTER;");
+        
+     // ==== Кнопка обновления в заголовке "Последний обмен" ====
+        Button refreshBtn = new Button("⟳");
+        refreshBtn.setStyle("-fx-padding: 0 6 0 6; -fx-font-size: 11px; -fx-cursor: hand;");
+        refreshBtn.setOnAction(e -> treeTableView.refresh());
+
+        javafx.scene.layout.HBox headerBox = new javafx.scene.layout.HBox(6);
+        headerBox.setAlignment(javafx.geometry.Pos.CENTER);
+        headerBox.getChildren().addAll(new javafx.scene.control.Label("Последний обмен"), refreshBtn);
+
+        colLast.setGraphic(headerBox);
+        colLast.setText(null); // текст теперь внутри графики
+
+
+        // ==== Цвет текста в колонке "Имя" ====
+        colName.setCellFactory(_ -> new TreeTableCell<ServerInfo, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                ServerInfo server = (getTreeTableRow() != null) ? getTreeTableRow().getItem() : null;
+
+                if (empty || item == null || server == null) {
+                    setText(null);
+                    setStyle("");
+                } else {
+                    setText(item);
+                    if (isFullyFilled(server)) {
+                        setStyle("-fx-text-fill: green;");
                     } else {
-                        String display = item.getName();
-                        if (display == null || display.isBlank()) {
-                            display = item.getComputerName() != null ? item.getComputerName() : "(без имени)";
-                        }
-                        setText(display);
-
-                        if (isFullyFilled(item)) {
-                            setStyle("-fx-text-fill: green;");
-                        } else {
-                            setStyle("-fx-text-fill: red;");
-                        }
-
-                        MenuItem exchangeItem;
-                        if (item.isCentral()) {
-                            exchangeItem = new MenuItem("Выгрузить из центра - Загрузить в периферию");
-                            exchangeItem.setOnAction(e -> onUnloadData(item));
-                        } else {
-                            exchangeItem = new MenuItem("Выгрузить из периферии - Загрузить в центр");
-                            exchangeItem.setOnAction(e -> onUnloadPeriphery(item));
-                        }
-                        
-                        MenuItem editItem = new MenuItem("Редактировать");
-                        editItem.setOnAction(e -> editServer(item));
-                        
-                        MenuItem pingItem = new MenuItem("Проверка доступности");
-                        pingItem.setOnAction(e -> onPingServer(item));
-
-                        ContextMenu menu = new ContextMenu(exchangeItem, new SeparatorMenuItem(), pingItem, editItem);
-                        setContextMenu(menu);
+                        setStyle("-fx-text-fill: red;");
                     }
                 }
-            };
+            }
+        });
 
-            // Двойной клик
-            cell.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> {
+        // ==== Строка: контекстное меню и двойной клик ====
+        treeTableView.setRowFactory(tv -> {
+            TreeTableRow<ServerInfo> row = new TreeTableRow<>();
+
+            // Пункт обмена с сервером
+            MenuItem exchangeItem = new MenuItem();
+            exchangeItem.setOnAction(e -> {
+                ServerInfo s = row.getItem();
+                if (s == null) return;
+                if (s.isCentral()) {
+                    onUnloadData(s);
+                } else {
+                    onUnloadPeriphery(s);
+                }
+            });
+
+            MenuItem editItem = new MenuItem("Редактировать");
+            editItem.setOnAction(e -> {
+                ServerInfo s = row.getItem();
+                if (s != null) editServer(s);
+            });
+
+            MenuItem pingItem = new MenuItem("Проверка доступности");
+            pingItem.setOnAction(e -> {
+                ServerInfo s = row.getItem();
+                if (s != null) onPingServer(s);
+            });
+
+            ContextMenu menu = new ContextMenu(exchangeItem, new SeparatorMenuItem(), pingItem, editItem);
+            row.setContextMenu(menu);
+
+            // Строки переиспользуются, поэтому подпись пункта обмена
+            // обновляем при смене элемента в строке
+            row.itemProperty().addListener((_, _, s) -> {
+                if (s == null) {
+                    row.setContextMenu(null);
+                } else {
+                    exchangeItem.setText(s.isCentral()
+                            ? "Выгрузить из центра - Загрузить в периферию"
+                            : "Выгрузить из периферии - Загрузить в центр");
+                    row.setContextMenu(menu);
+                }
+            });
+
+            // Двойной клик — открываем диалог только для чтения
+            row.addEventFilter(MouseEvent.MOUSE_PRESSED, event -> {
                 if (event.getButton() == MouseButton.PRIMARY && event.getClickCount() == 2) {
                     event.consume();
-                    ServerInfo selected = getSelectedServer();
+                    ServerInfo selected = row.getItem();
                     if (selected != null) {
                         openDialog(selected, true);
                     }
                 }
             });
 
-            return cell;
+            return row;
         });
 
         // ==== Слушаем изменение выделения ====
-        treeView.getSelectionModel().selectedItemProperty().addListener(
+        treeTableView.getSelectionModel().selectedItemProperty().addListener(
                 (_, _, newVal) -> {
                     ServerInfo s = (newVal == null) ? null : newVal.getValue();
                     updateReadDbButtonState(s);
@@ -176,6 +247,7 @@ public class MainController {
             showWarning("Не удалось загрузить список серверов:\n" + e.getMessage());
         }
     }
+
 
     // ============================================================
     //  РАБОТА С ДЕРЕВОМ
@@ -192,7 +264,7 @@ public class MainController {
     }
     
     private void rebuildTree() {
-        TreeItem<ServerInfo> root = treeView.getRoot();
+        TreeItem<ServerInfo> root = treeTableView.getRoot();
         root.getChildren().clear();
 
         for (ServerInfo s : servers) {
@@ -231,7 +303,7 @@ public class MainController {
     }
 
     private ServerInfo getSelectedServer() {
-        TreeItem<ServerInfo> item = treeView.getSelectionModel().getSelectedItem();
+        TreeItem<ServerInfo> item = treeTableView.getSelectionModel().getSelectedItem();
         return item == null ? null : item.getValue();
     }
 
@@ -357,10 +429,10 @@ public class MainController {
             rebuildTree();
             saveServers();
 
-            TreeItem<ServerInfo> parentItem = findTreeItem(treeView.getRoot(), selected.getName());
+            TreeItem<ServerInfo> parentItem = findTreeItem(treeTableView.getRoot(), selected.getName());
             if (parentItem != null) {
                 parentItem.setExpanded(true);
-                treeView.getSelectionModel().select(parentItem);
+                treeTableView.getSelectionModel().select(parentItem);
             }
 
         } catch (SQLException e) {
@@ -383,9 +455,9 @@ public class MainController {
 
     private void selectByName(String name) {
         if (name == null) return;
-        TreeItem<ServerInfo> item = findTreeItem(treeView.getRoot(), name);
+        TreeItem<ServerInfo> item = findTreeItem(treeTableView.getRoot(), name);
         if (item != null) {
-            treeView.getSelectionModel().select(item);
+        	treeTableView.getSelectionModel().select(item);
         }
     }
 
@@ -415,7 +487,7 @@ public class MainController {
     }
 
     private Stage getStage() {
-        return (Stage) treeView.getScene().getWindow();
+        return (Stage) treeTableView.getScene().getWindow();
     }
     
     private List<ServerInfo> findChildren(ServerInfo parent) {
@@ -562,5 +634,47 @@ public class MainController {
         Thread thread = new Thread(pingTask);
         thread.setDaemon(true);
         thread.start();
+    }
+    
+    /**
+     * Разница в минутах между текущим временем и временем файла
+     * "<dbSign>1.zip" в сетевой папке PC центральной базы.
+     * Сетевой путь задаётся в реквизите "Сетевой путь" центральной записи.
+     */
+    private String getLastInfo(ServerInfo s) {
+        if (s == null || s.isCentral()) return "";
+
+        String sign = (s.getDbSign() == null) ? null : s.getDbSign().trim();
+        if (isBlank(sign) || isBlank(s.getParentName())) return "";
+
+        // Находим центральную базу — родителя этого листа
+        ServerInfo central = null;
+        for (ServerInfo c : servers) {
+            if (c.isCentral() && c.getName() != null && c.getName().equals(s.getParentName())) {
+                central = c;
+                break;
+            }
+        }
+        if (central == null || isBlank(central.getNetworkPath())) return "";
+
+        // Папка PC: сетевой путь + "\PC" (завершающий слэш в реквизите не мешает)
+        File pcDir = new File(central.getNetworkPath().trim(), "PC");
+        File zipFile = new File(pcDir, sign + "1.zip");
+
+        if (!zipFile.isFile()) {
+            // Диагностика — после проверки можно убрать
+            System.out.println("DIAG [" + s.getName() + "] файл: " + zipFile.getAbsolutePath()
+                    + " | pcDir.isDirectory()=" + pcDir.isDirectory());
+            return "";
+        }
+
+        long m = (System.currentTimeMillis() - zipFile.lastModified()) / 60000;
+        String form;
+        long mod10 = m % 10, mod100 = m % 100;
+        if (mod10 == 1 && mod100 != 11) form = "минута";
+        else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) form = "минуты";
+        else form = "минут";
+        return m + " " + form;
+
     }
 }

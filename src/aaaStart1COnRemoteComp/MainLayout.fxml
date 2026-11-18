@@ -8,38 +8,48 @@
 <?import javafx.scene.layout.HBox?>
 <?import javafx.scene.layout.VBox?>
 <?import javafx.scene.control.SplitPane?>
-
+<?import javafx.scene.control.TreeTableView?>
+<?import javafx.scene.control.TreeTableColumn?>
 <BorderPane xmlns="http://javafx.com/javafx"
-            xmlns:fx="http://javafx.com/fxml"
-            fx:controller="aaaStart1COnRemoteComp.MainController">
+	xmlns:fx="http://javafx.com/fxml"
+	fx:controller="aaaStart1COnRemoteComp.MainController">
 
-    <!-- Центральная часть - разделитель -->
-    <center>
-        <SplitPane orientation="VERTICAL" dividerPositions="0.65">
-            
-            <!-- Верхняя панель: Дерево серверов -->
-            <TreeView fx:id="treeView" />
+	<!-- Центральная часть - разделитель -->
+	<center>
+		<SplitPane orientation="VERTICAL" dividerPositions="0.65">
 
-            <!-- Нижняя панель: Лог и кнопки -->
-            <VBox>
-                <!-- Лог (растягивается на все доступное место в VBox) -->
-                <ListView fx:id="logArea" 
-                          style="-fx-font-family: 'Consolas', monospace; -fx-font-size: 11px;"
-                          VBox.vgrow="ALWAYS" />
-                
-                <!-- Кнопки внизу -->
-                <HBox spacing="10" alignment="CENTER_LEFT">
-                    <padding>
-                        <Insets top="10" right="10" bottom="10" left="10"/>
-                    </padding>
-                    <Button fx:id="addButton" text="Добавить" onAction="#onAdd"/>
-                    <Button fx:id="editButton" text="Редактировать" onAction="#onEdit"/>
-                    <Button fx:id="deleteButton" text="Удалить" onAction="#onDelete"/>
-                    <Button fx:id="readDbButton" text="Прочитать БД" onAction="#onReadDatabase"/>
-                </HBox>
-            </VBox>
+			<TreeTableView fx:id="treeTableView" showRoot="false">
+				<columns>
+					<TreeTableColumn fx:id="colName" text="Имя"
+						prefWidth="300" />
+			<TreeTableColumn fx:id="colLast" text="Последний обмен" prefWidth="200"/>
+				</columns>
+			</TreeTableView>
 
-        </SplitPane>
-    </center>
+
+			<!-- Нижняя панель: Лог и кнопки -->
+			<VBox>
+				<!-- Лог (растягивается на все доступное место в VBox) -->
+				<ListView fx:id="logArea"
+					style="-fx-font-family: 'Consolas', monospace; -fx-font-size: 11px;"
+					VBox.vgrow="ALWAYS" />
+
+				<!-- Кнопки внизу -->
+				<HBox spacing="10" alignment="CENTER_LEFT">
+					<padding>
+						<Insets top="10" right="10" bottom="10" left="10" />
+					</padding>
+					<Button fx:id="addButton" text="Добавить" onAction="#onAdd" />
+					<Button fx:id="editButton" text="Редактировать"
+						onAction="#onEdit" />
+					<Button fx:id="deleteButton" text="Удалить"
+						onAction="#onDelete" />
+					<Button fx:id="readDbButton" text="Прочитать БД"
+						onAction="#onReadDatabase" />
+				</HBox>
+			</VBox>
+
+		</SplitPane>
+	</center>
 
 </BorderPane>

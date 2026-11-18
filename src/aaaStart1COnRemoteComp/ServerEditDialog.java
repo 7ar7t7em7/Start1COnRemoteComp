@@ -36,6 +36,7 @@ public class ServerEditDialog {
     private PasswordField smbPasswordField;
     private CheckBox usePsExecCheckBox;
     private TextField shareNameField; // НОВОЕ ПОЛЕ: Имя шары
+    private TextField networkPathField; // Сетевой путь к папке PC
 
     public ServerEditDialog(Stage owner, ServerInfo server, boolean readOnly, List<String> possibleParents) {
         this.server = server;
@@ -68,6 +69,7 @@ public class ServerEditDialog {
         smbUserField = new TextField(); smbUserField.setMaxWidth(Double.MAX_VALUE);
         smbPasswordField = new PasswordField(); smbPasswordField.setMaxWidth(Double.MAX_VALUE);
         shareNameField = new TextField(); shareNameField.setMaxWidth(Double.MAX_VALUE); // Инициализация поля шары
+        networkPathField = new TextField(); networkPathField.setMaxWidth(Double.MAX_VALUE);
         
         grid.add(new Label("Наименование:"), 0, 0);   grid.add(nameField, 1, 0);
         grid.add(new Label("Имя компьютера:"), 0, 1); grid.add(computerNameField, 1, 1);
@@ -82,9 +84,10 @@ public class ServerEditDialog {
         
         // Добавляем поле имени шары
         grid.add(new Label("Имя шары (SMB):"), 0, 10); grid.add(shareNameField, 1, 10);
-        
-        grid.add(centralCheckBox, 1, 11);
-        grid.add(usePsExecCheckBox, 1, 12);
+        grid.add(new Label("Сетевой путь:"), 0, 11); grid.add(networkPathField, 1, 11);
+
+        grid.add(centralCheckBox, 1, 12);
+        grid.add(usePsExecCheckBox, 1, 13);
 
         Button okButton = new Button("OK");
         Button cancelButton = new Button("Отмена");
@@ -123,6 +126,7 @@ public class ServerEditDialog {
             smbUserField.setEditable(false);
             smbPasswordField.setEditable(false);
             shareNameField.setEditable(false);
+            networkPathField.setEditable(false);
         }
 
         if (server != null) {
@@ -139,6 +143,7 @@ public class ServerEditDialog {
             smbPasswordField.setText(server.getSmbPassword());
             usePsExecCheckBox.setSelected(server.isUsePsExec());
             shareNameField.setText(server.getShareName()); // Загружаем имя шары
+            networkPathField.setText(server.getNetworkPath());
         }
     }
 
@@ -173,6 +178,7 @@ public class ServerEditDialog {
         s.setSmbPassword(smbPasswordField.getText());
         s.setUsePsExec(usePsExecCheckBox.isSelected());
         s.setShareName(shareNameField.getText()); // Сохраняем имя шары
+        s.setNetworkPath(networkPathField.getText());
     }
 
     public boolean isOkClicked() { return okClicked; }

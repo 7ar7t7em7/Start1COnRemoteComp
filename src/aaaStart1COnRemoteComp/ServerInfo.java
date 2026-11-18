@@ -41,6 +41,8 @@ public class ServerInfo {
     private boolean usePsExec;
     
     private String shareName; // Имя сетевой шары (например, "1c_Rub")
+    
+    private String networkPath = "";
 
     // ===== Конструкторы =====
 
@@ -137,6 +139,14 @@ this.central = central;
     
     public boolean isUsePsExec() { return usePsExec; }
     public void setUsePsExec(boolean usePsExec) { this.usePsExec = usePsExec; }
+    
+    public String getNetworkPath() {
+        return networkPath == null ? "" : networkPath;
+    }
+
+    public void setNetworkPath(String networkPath) {
+        this.networkPath = networkPath == null ? "" : networkPath;
+    }
 
     // ===== Удобные методы =====
 
