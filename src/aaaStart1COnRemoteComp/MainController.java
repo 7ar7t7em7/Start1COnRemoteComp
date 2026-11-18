@@ -4,10 +4,14 @@ import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
+import javafx.geometry.Pos;
 import javafx.scene.control.*;
+import javafx.scene.control.SelectionMode;
 import javafx.scene.input.MouseButton;
 import javafx.scene.input.MouseEvent;
-import javafx.scene.control.SelectionMode;
+import javafx.scene.layout.Priority;
+import javafx.scene.layout.Pane;
+import javafx.scene.layout.VBox;
 import javafx.stage.Stage;
 
 import java.io.IOException;
@@ -28,11 +32,16 @@ public class MainController {
 
     @FXML
     private Button readDbButton;
-    
-    @FXML 
+
+    @FXML
     private ListView<String> logArea;
 
     private final ObservableList<ServerInfo> servers = FXCollections.observableArrayList();
+    private ComboBox<String> logFilterBox;
+
+    // Копия последнего применённого фильтра (база), чтобы переустановить его после пополнения списка
+    private String currentLogFilterName;
+
 
     @FXML
     private void initialize() {
@@ -124,7 +133,7 @@ public class MainController {
             ServerInfo s = p.getValue().getValue();
             return new javafx.beans.property.SimpleStringProperty(s == null ? "" : getLastInfo(s));
         });
-        
+
         colLast.setCellFactory(_ -> new TreeTableCell<ServerInfo, String>() {
             @Override
             protected void updateItem(String item, boolean empty) {
@@ -138,8 +147,8 @@ public class MainController {
             }
         });
         colLast.setStyle("-fx-alignment: CENTER;");
-        
-     // ==== Кнопка обновления в заголовке "Последний обмен" ====
+
+        // ==== Кнопка обновления в заголовке "Последний обмен" ====
         Button refreshBtn = new Button("⟳");
         refreshBtn.setStyle("-fx-padding: 0 6 0 6; -fx-font-size: 11px; -fx-cursor: hand;");
         refreshBtn.setOnAction(e -> treeTableView.refresh());
@@ -150,7 +159,6 @@ public class MainController {
 
         colLast.setGraphic(headerBox);
         colLast.setText(null); // текст теперь внутри графики
-
 
         // ==== Цвет текста в колонке "Имя" ====
         colName.setCellFactory(_ -> new TreeTableCell<ServerInfo, String>() {
@@ -246,6 +254,85 @@ public class MainController {
         } catch (IOException e) {
             showWarning("Не удалось загрузить список серверов:\n" + e.getMessage());
         }
+
+        // ==== Фильтр лога ====
+        setupLogFilter();
+    }
+
+
+    // ============================================================
+    //  ФИЛЬТР ЛОГА
+    // ============================================================
+
+    /** Создаёт комбобокс фильтра и размещает его над списком лога. */
+    /** Создаёт комбобокс фильтра и размещает его над списком лога. */
+    private void setupLogFilter() {
+        logFilterBox = new ComboBox<>();
+        logFilterBox.setMaxWidth(Double.MAX_VALUE);
+
+        refreshLogFilterItems();
+
+        // Подкладываем комбобокс над logArea: заменяем logArea в родителе
+        // на VBox(комбобокс + logArea). Вёрстку FXML менять не нужно.
+        if (logArea.getParent() instanceof Pane parentPane) {
+            VBox logBox = new VBox(4);
+            VBox.setVgrow(logArea, Priority.ALWAYS);
+
+            int idx = parentPane.getChildren().indexOf(logArea); // ДО перекладывания
+            if (idx >= 0) {
+                logBox.getChildren().add(logFilterBox); // logArea ещё на месте
+                logBox.getChildren().add(logArea);      // теперь logArea автоматически ушла из parentPane
+                parentPane.getChildren().add(idx, logBox); // logBox встаёт ровно на место logArea
+            }
+        }
+
+        logFilterBox.valueProperty().addListener((obs, oldVal, sel) -> applyLogFilter());
+    }
+
+
+    /** Обновляет список баз в комбобоксе (вызывается после изменения списка серверов). */
+    private void refreshLogFilterItems() {
+        if (logFilterBox == null) return;
+        String current = logFilterBox.getValue();
+        if (current == null) current = currentLogFilterName;
+
+        logFilterBox.getItems().setAll("Все базы");
+        for (ServerInfo s : servers) {
+            if (notBlank(s.getName())) {
+                logFilterBox.getItems().add(s.getName());
+            }
+        }
+        logFilterBox.setValue(current != null && logFilterBox.getItems().contains(current) ? current : "Все базы");
+    }
+
+    /** Применяет выбранный фильтр к отображению лога. */
+    private void applyLogFilter() {
+        String sel = logFilterBox.getValue();
+        if (sel == null || sel.equals("Все базы")) {
+            currentLogFilterName = null;
+            AppLogger.setUiLogFilter(null);
+            return;
+        }
+
+        ServerInfo selSrv = null;
+        for (ServerInfo s : servers) {
+            if (s.getName() != null && s.getName().equals(sel)) {
+                selSrv = s;
+                break;
+            }
+        }
+        if (selSrv == null) {
+            currentLogFilterName = null;
+            AppLogger.setUiLogFilter(null);
+            return;
+        }
+
+        currentLogFilterName = selSrv.getName();
+        final String name = selSrv.getName();
+        final String sign = selSrv.getDbSign();
+        AppLogger.setUiLogFilter(line ->
+                (name != null && line.contains(name))
+                || (sign != null && !sign.isBlank() && line.contains(sign)));
     }
 
 
@@ -262,7 +349,7 @@ public class MainController {
         }
         return result;
     }
-    
+
     private void rebuildTree() {
         TreeItem<ServerInfo> root = treeTableView.getRoot();
         root.getChildren().clear();
@@ -325,6 +412,7 @@ public class MainController {
             dialog.applyToServer(newServer);
             servers.add(newServer);
             rebuildTree();
+            refreshLogFilterItems();
             saveServers();
         }
     }
@@ -338,13 +426,13 @@ public class MainController {
         }
         editServer(selected);
     }
-    
+
     private void editServer(ServerInfo server) {
         if (server == null) return;
 
         ServerEditDialog dialog = new ServerEditDialog(getStage(), server, false, getPossibleParentNames(server));
         dialog.showAndWait();
-        
+
         if (dialog.isOkClicked()) {
             String oldName = server.getName();
             dialog.applyToServer(server);
@@ -358,6 +446,7 @@ public class MainController {
                 }
             }
             rebuildTree();
+            refreshLogFilterItems();
             saveServers();
             selectByName(server.getName());
         }
@@ -377,6 +466,7 @@ public class MainController {
             if (response == ButtonType.OK) {
                 servers.remove(selected);
                 rebuildTree();
+                refreshLogFilterItems();
                 saveServers();
             }
         });
@@ -427,6 +517,7 @@ public class MainController {
 
             servers.addAll(newServers);
             rebuildTree();
+            refreshLogFilterItems();
             saveServers();
 
             TreeItem<ServerInfo> parentItem = findTreeItem(treeTableView.getRoot(), selected.getName());
@@ -444,10 +535,11 @@ public class MainController {
         boolean effectiveReadOnly = readOnly || server.isCentral();
         ServerEditDialog dialog = new ServerEditDialog(getStage(), server, effectiveReadOnly, getPossibleParentNames(server));
         dialog.showAndWait();
-        
+
         if (!effectiveReadOnly && dialog.isOkClicked()) {
             dialog.applyToServer(server);
             rebuildTree();
+            refreshLogFilterItems();
             saveServers();
             selectByName(server.getName());
         }
@@ -489,7 +581,7 @@ public class MainController {
     private Stage getStage() {
         return (Stage) treeTableView.getScene().getWindow();
     }
-    
+
     private List<ServerInfo> findChildren(ServerInfo parent) {
         List<ServerInfo> result = new ArrayList<>();
         for (ServerInfo s : servers) {
@@ -540,10 +632,10 @@ public class MainController {
         Thread thread = new Thread(unloadTask);
         thread.setDaemon(true);
         thread.start();
-        
+
         AppLogger.info("Процесс выгрузки запущен в фоновом режиме.");
     }
-    
+
     private void onUnloadPeriphery(ServerInfo peripheralServer) {
         // Ищем центральную базу для этой периферии
         ServerInfo centralServer = null;
@@ -584,7 +676,7 @@ public class MainController {
         thread.setDaemon(true);
         thread.start();
     }
-    
+
     /** Вспомогательный метод для копирования текста в буфер обмена. */
     private void copyToClipboard(String text) {
         javafx.scene.input.Clipboard clipboard = javafx.scene.input.Clipboard.getSystemClipboard();
@@ -592,7 +684,7 @@ public class MainController {
         content.putString(text);
         clipboard.setContent(content);
     }
-    
+
     private void onPingServer(ServerInfo server) {
         if (isBlank(server.getIp())) {
             showWarning("У сервера \"" + server.getName() + "\" не заполнен IP-адрес.");
@@ -608,7 +700,7 @@ public class MainController {
                 ProcessBuilder pb = new ProcessBuilder("ping", "-n", "1", "-w", "2000", server.getIp());
                 pb.redirectErrorStream(true);
                 Process process = pb.start();
-                
+
                 StringBuilder output = new StringBuilder();
                 try (java.io.BufferedReader reader = new java.io.BufferedReader(
                         new java.io.InputStreamReader(process.getInputStream(), "Cp866"))) {
@@ -617,16 +709,16 @@ public class MainController {
                         output.append(line);
                     }
                 }
-                
+
                 process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS);
                 String result = output.toString();
-                
+
                 if (result.contains("TTL=") || result.contains("ttl=") || result.contains("время=") || result.contains("time=")) {
                     AppLogger.info("✅ Сервер " + server.getIp() + " ДОСТУПЕН (Ping прошел успешно).");
                 } else {
                     AppLogger.warn("❌ Сервер " + server.getIp() + " НЕДОСТУПЕН (Ping не прошел).");
                 }
-                
+
                 return null;
             }
         };
@@ -635,7 +727,7 @@ public class MainController {
         thread.setDaemon(true);
         thread.start();
     }
-    
+
     /**
      * Разница в минутах между текущим временем и временем файла
      * "<dbSign>1.zip" в сетевой папке PC центральной базы.
@@ -661,12 +753,7 @@ public class MainController {
         File pcDir = new File(central.getNetworkPath().trim(), "PC");
         File zipFile = new File(pcDir, sign + "1.zip");
 
-        if (!zipFile.isFile()) {
-            // Диагностика — после проверки можно убрать
-            System.out.println("DIAG [" + s.getName() + "] файл: " + zipFile.getAbsolutePath()
-                    + " | pcDir.isDirectory()=" + pcDir.isDirectory());
-            return "";
-        }
+        if (!zipFile.isFile()) return "";
 
         long m = (System.currentTimeMillis() - zipFile.lastModified()) / 60000;
         String form;
@@ -675,6 +762,5 @@ public class MainController {
         else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) form = "минуты";
         else form = "минут";
         return m + " " + form;
-
     }
 }

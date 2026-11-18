@@ -39,6 +39,7 @@ public class ExchangeService {
         AppLogger.pushOperationId(mainOpId);
 
         try {
+        	AppLogger.setContextDbSign(centralServer.getDbSign().trim());
             AppLogger.info("==========================================================");
             AppLogger.info("НАЧАЛО ПРОЦЕССА ВЫГРУЗКИ ИЗ ЦЕНТРА: " + centralServer.getName());
             AppLogger.info("==========================================================");
@@ -145,6 +146,7 @@ public class ExchangeService {
             return new ExchangeResult(false, "Критическая ошибка: " + e.getMessage());
         } finally {
             AppLogger.popOperationId();
+            AppLogger.clearContextDbSign();
         }
     }
 
@@ -156,6 +158,7 @@ public class ExchangeService {
         AppLogger.pushOperationId(mainOpId);
 
         try {
+        	AppLogger.setContextDbSign(peripheralServer.getDbSign().trim());
             AppLogger.info("==========================================================");
             AppLogger.info("НАЧАЛО ПРОЦЕССА ВЫГРУЗКИ ИЗ ПЕРИФЕРИИ: " + peripheralServer.getName());
             AppLogger.info("Центральная база: " + centralServer.getName());
@@ -206,13 +209,17 @@ public class ExchangeService {
 
             // Только если выгрузка прошла успешно, копируем файл
             String fileName = peripheralServer.getDbSign().trim() + "1.zip";
-            boolean copied = copyExchangeFile(peripheralServer, centralServer, fileName, "PC");
+            long copiedBytes = copyExchangeFile(peripheralServer, centralServer, fileName, "PC");
 
-            boolean allSuccess = copied;
-            if (copied) {
+            boolean allSuccess = (copiedBytes > 0);
+            if (copiedBytes > 0) {
+                long sizeInKb = copiedBytes / 1024;
+                AppLogger.info("Скачан и отправлен файл обмена: " + fileName + " (Размер: " + sizeInKb + " КБ)");
+
                 ExchangeResult loadResult = loadToCenter(centralServer, peripheralServer);
                 allSuccess = loadResult.isSuccess();
             }
+
 
             if (allSuccess) {
                 return new ExchangeResult(true, "УСПЕШНОЕ ЗАВЕРШЕНИЕ ПРОЦЕССА ВЫГРУЗКИ ИЗ ПЕРИФЕРИИ И ЗАГРУЗКИ В ЦЕНТР");
@@ -225,6 +232,7 @@ public class ExchangeService {
             return new ExchangeResult(false, "Критическая ошибка: " + e.getMessage());
         } finally {
             AppLogger.popOperationId();
+            AppLogger.clearContextDbSign();
         }
     }
 
@@ -298,6 +306,9 @@ public class ExchangeService {
         }
 
         boolean allSuccess = true;
+        int filesCopiedCount = 0;
+        long totalCopiedBytes = 0;
+
         for (ServerInfo peripheral : targets) {
             if (isBlank(peripheral.getIp()) || isBlank(peripheral.getSmbUser())) {
                 AppLogger.warn("Пропуск " + peripheral.getName() + ": не заполнены данные для SMB.");
@@ -323,10 +334,10 @@ public class ExchangeService {
                     // Игнорируем ошибки SMB при проверке, пробуем в следующий раз
                     AppLogger.warn("Ошибка проверки файла " + zipFileName + ": " + e.getMessage());
                 }
-                
+
                 AppLogger.info("Ожидаем появления файла " + zipFileName + " на центральном сервере...");
-                try { 
-                    Thread.sleep(COPY_POLL_INTERVAL_MS); 
+                try {
+                    Thread.sleep(COPY_POLL_INTERVAL_MS);
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                     break;
@@ -339,17 +350,26 @@ public class ExchangeService {
                 continue;
             }
 
-            boolean copied = copyExchangeFile(centralServer, peripheral, zipFileName, "CP");
-            if (copied) {
+            long copiedBytes = copyExchangeFile(centralServer, peripheral, zipFileName, "CP");
+            if (copiedBytes > 0) {
+                filesCopiedCount++;
+                totalCopiedBytes += copiedBytes;
                 ExchangeResult loadResult = loadToPeriphery(peripheral, centralServer);
                 if (!loadResult.isSuccess()) allSuccess = false;
             } else {
                 allSuccess = false;
             }
         }
+
+        if (filesCopiedCount > 0) {
+            long sizeInKb = totalCopiedBytes / 1024;
+            AppLogger.info("Скопировано файлов: " + filesCopiedCount
+                    + ", суммарный объём: " + sizeInKb + " КБ");
+        }
+
         return allSuccess;
     }
-
+    
     private static ExchangeResult loadToPeriphery(ServerInfo peripheralServer, ServerInfo centralServer) {
         String subOpId = "LD-" + (System.currentTimeMillis() % 1000);
         AppLogger.pushOperationId(subOpId);
@@ -421,55 +441,51 @@ public class ExchangeService {
         }
     }
 
-    private static boolean copyExchangeFile(ServerInfo sourceServer, ServerInfo targetServer,
+    private static long copyExchangeFile(ServerInfo sourceServer, ServerInfo targetServer,
             String fileName, String folderName) {
-// Используем getShareName(), который уже умеет возвращать ручное значение, если оно задано
-String sourceShare = sourceServer.getShareName();
-String targetShare = targetServer.getShareName();
+        // Используем getShareName(), который уже умеет возвращать ручное значение, если оно задано
+        String sourceShare = sourceServer.getShareName();
+        String targetShare = targetServer.getShareName();
 
-String sourcePath = "smb://" + sourceServer.getIp() + "/" + sourceShare + "/" + folderName + "/";
-String targetPath = "smb://" + targetServer.getIp() + "/" + targetShare + "/" + folderName + "/";
+        String sourcePath = "smb://" + sourceServer.getIp() + "/" + sourceShare + "/" + folderName + "/";
+        String targetPath = "smb://" + targetServer.getIp() + "/" + targetShare + "/" + folderName + "/";
 
-File tempDir = new File("D:\\ae\\Temp");
-if (!tempDir.exists()) tempDir.mkdirs();
-String localTempFilePath = tempDir.getAbsolutePath() + File.separator + fileName;
+        File tempDir = new File("D:\\ae\\Temp");
+        if (!tempDir.exists()) tempDir.mkdirs();
+        String localTempFilePath = tempDir.getAbsolutePath() + File.separator + fileName;
 
-try {
-SmbFileTransfer sourceTransfer = new SmbFileTransfer(sourceServer.getIp(),
-sourceServer.getSmbUser(), sourceServer.getSmbPassword());
+        try {
+            SmbFileTransfer sourceTransfer = new SmbFileTransfer(sourceServer.getIp(),
+                    sourceServer.getSmbUser(), sourceServer.getSmbPassword());
 
-// Проверяем существование файла
-if (!sourceTransfer.exists(sourcePath, fileName)) {
-AppLogger.error("Файл " + fileName + " не найден в папке " + folderName + " на " + sourceServer.getName());
-return false;
-}
+            // Проверяем существование файла
+            if (!sourceTransfer.exists(sourcePath, fileName)) {
+                AppLogger.error("Файл " + fileName + " не найден в папке " + folderName + " на " + sourceServer.getName());
+                return 0;
+            }
 
-// Скачиваем
-sourceTransfer.download(sourcePath, fileName, localTempFilePath);
+            // Скачиваем
+            sourceTransfer.download(sourcePath, fileName, localTempFilePath);
 
-// Получаем размер скачанного файла
-File localFile = new File(localTempFilePath);
-long sizeInBytes = localFile.length();
-long sizeInKb = sizeInBytes / 1024;
+            // Размер скачанного файла
+            File localFile = new File(localTempFilePath);
+            long sizeInBytes = localFile.length();
 
-AppLogger.info("Скачан файл обмена: " + fileName + " (Размер: " + sizeInKb + " КБ) с " + sourceServer.getName());
+            // Загружаем
+            SmbFileTransfer targetTransfer = new SmbFileTransfer(targetServer.getIp(),
+                    targetServer.getSmbUser(), targetServer.getSmbPassword());
+            targetTransfer.upload(localTempFilePath, targetPath, fileName);
 
-// Загружаем
-SmbFileTransfer targetTransfer = new SmbFileTransfer(targetServer.getIp(),
-targetServer.getSmbUser(), targetServer.getSmbPassword());
-targetTransfer.upload(localTempFilePath, targetPath, fileName);
+            return sizeInBytes;
 
-AppLogger.info("Файл " + fileName + " успешно отправлен на " + targetServer.getName());
-return true;
-
-} catch (Exception e) {
-AppLogger.error("Ошибка копирования " + fileName + ": " + e.getMessage());
-return false;
-} finally {
-File tempFile = new File(localTempFilePath);
-if (tempFile.exists()) tempFile.delete();
-}
-}
+        } catch (Exception e) {
+            AppLogger.error("Ошибка копирования " + fileName + ": " + e.getMessage());
+            return 0;
+        } finally {
+            File tempFile = new File(localTempFilePath);
+            if (tempFile.exists()) tempFile.delete();
+        }
+    }
 
     // ============================================================
     //  УТИЛИТЫ

@@ -9,130 +9,164 @@ import java.util.Date;
 import java.util.Stack;
 
 import javafx.application.Platform;
-import javafx.scene.control.TextArea;
-import javafx.application.Platform;
 import javafx.collections.FXCollections;
 import javafx.collections.ObservableList;
 import javafx.scene.control.ListView;
+import javafx.collections.transformation.FilteredList;
+import java.util.function.Predicate;
 
 public class AppLogger {
 
-    private static final String LOG_DIR = "D:\\ae\\Logs";
-    private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd");
-    private static final SimpleDateFormat TIME_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
-    private static final int MAX_LOG_LINES = 1000;
-    
-    
-    private static ListView<String> uiLogList = null;
-    private static final ObservableList<String> uiLogData = FXCollections.observableArrayList();
+	private static final String LOG_DIR = "D:\\ae\\Logs";
+	private static final SimpleDateFormat DATE_FORMAT = new SimpleDateFormat("yyyy-MM-dd");
+	private static final SimpleDateFormat TIME_FORMAT = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss");
+	private static final int MAX_LOG_LINES = 1000;
 
-    /** Устанавливает список для вывода логов в UI. */
-    public static void setUiLogArea(ListView<String> listView) {
-        uiLogList = listView;
-        if (uiLogList != null) {
-            uiLogList.setItems(uiLogData);
-        }
-    }
+	/** Текущая база для контекста логирования (по потоку операции). */
+	private static final ThreadLocal<String> contextDbSign = new ThreadLocal<>();
 
-    // Храним стек ID операций для текущего потока (для поддержки вложенности)
-    private static final ThreadLocal<Stack<String>> opIdStack = ThreadLocal.withInitial(Stack::new);
+	private static ListView<String> uiLogList = null;
+	private static final ObservableList<String> uiLogData = FXCollections.observableArrayList();
+	private static final FilteredList<String> uiLogFiltered = new FilteredList<>(uiLogData, null);
+	
+	public static void setContextDbSign(String sign) {
+	    contextDbSign.set(sign);
+	}
 
-    public enum Level { INFO, WARN, ERROR }
+	public static void clearContextDbSign() {
+	    contextDbSign.remove();
+	}
 
-    /** Добавляет ID операции в стек (для вложенных операций). */
-    public static void pushOperationId(String id) {
-        opIdStack.get().push(id);
-    }
+	/** Устанавливает список для вывода логов в UI. */
+	public static void setUiLogArea(ListView<String> listView) {
+		uiLogList = listView;
+		if (uiLogList != null) {
+			uiLogList.setItems(uiLogFiltered); // показываем отфильтрованное
+		}
+	}
 
-    /** Убирает последний ID операции из стека. */
-    public static void popOperationId() {
-        Stack<String> stack = opIdStack.get();
-        if (!stack.isEmpty()) {
-            stack.pop();
-        }
-    }
+	/** Устанавливает фильтр отображения лога. null — показывать всё. */
+	public static void setUiLogFilter(Predicate<String> predicate) {
+		Platform.runLater(() -> uiLogFiltered.setPredicate(predicate));
+	}
 
-    /** Формирует строку вида [EX-12345] или [EX-12345-LD1]. */
-    private static String getCurrentOpIdPrefix() {
-        Stack<String> stack = opIdStack.get();
-        if (stack.isEmpty()) return "";
-        
-        StringBuilder sb = new StringBuilder("[");
-        for (int i = 0; i < stack.size(); i++) {
-            if (i > 0) sb.append("-");
-            sb.append(stack.get(i));
-        }
-        sb.append("] ");
-        return sb.toString();
-    }
+	// Храним стек ID операций для текущего потока (для поддержки вложенности)
+	private static final ThreadLocal<Stack<String>> opIdStack = ThreadLocal.withInitial(Stack::new);
 
-    /** Записывает сообщение в лог. */
-    public static void log(Level level, String message) {
-        String time = TIME_FORMAT.format(new Date());
-        
-        // Формируем префикс: [2026-11-02 12:00:00] [EX-1021] [INFO] 
-        String prefix = "[" + time + "] " + getCurrentOpIdPrefix() + "[" + level + "] ";
+	public enum Level {
+		INFO, WARN, ERROR
+	}
 
-        // Для многострочных сообщений добавляем отступы, чтобы было красиво
-        String[] lines = message.split("\r?\n");
-        StringBuilder formattedMessage = new StringBuilder();
-        for (int i = 0; i < lines.length; i++) {
-            if (i == 0) {
-                formattedMessage.append(prefix).append(lines[i]).append("\n");
-            } else {
-                // Отступ для продолжения строки (выравниваем по тексту сообщения)
-                String indent = " ".repeat(prefix.length());
-                formattedMessage.append(indent).append(lines[i]).append("\n");
-            }
-        }
+	/** Добавляет ID операции в стек (для вложенных операций). */
+	public static void pushOperationId(String id) {
+		opIdStack.get().push(id);
+	}
 
-        // 1. Вывод в консоль
-        if (level == Level.ERROR) {
-            System.err.print(formattedMessage);
-        } else {
-            System.out.print(formattedMessage);
-        }
+	/** Убирает последний ID операции из стека. */
+	public static void popOperationId() {
+		Stack<String> stack = opIdStack.get();
+		if (!stack.isEmpty()) {
+			stack.pop();
+		}
+	}
 
-        // 2. Вывод в UI (если окно открыто)
-        if (uiLogList != null) {
-            String finalMessage = formattedMessage.toString().trim(); // убираем лишние переносы в конце
-            Platform.runLater(() -> {
-                uiLogData.add(finalMessage);
-                
-                // Если превысили лимит — удаляем самые старые строки
-                if (uiLogData.size() > MAX_LOG_LINES) {
-                    uiLogData.remove(0, uiLogData.size() - MAX_LOG_LINES);
-                }
-                
-                // Автоматическая прокрутка вниз
-                uiLogList.scrollTo(uiLogData.size() - 1);
-            });
-        }
-        
-        // 3. Запись в файл
-        try {
-            File dir = new File(LOG_DIR);
-            if (!dir.exists()) {
-                dir.mkdirs();
-            }
+	/** Формирует строку вида [EX-12345] или [EX-12345-LD1]. */
+	private static String getCurrentOpIdPrefix() {
+		Stack<String> stack = opIdStack.get();
+		if (stack.isEmpty())
+			return "";
 
-            String fileName = "app_" + DATE_FORMAT.format(new Date()) + ".log";
-            File logFile = new File(dir, fileName);
+		StringBuilder sb = new StringBuilder("[");
+		for (int i = 0; i < stack.size(); i++) {
+			if (i > 0)
+				sb.append("-");
+			sb.append(stack.get(i));
+		}
+		sb.append("] ");
+		return sb.toString();
+	}
 
-            try (BufferedWriter writer = new BufferedWriter(new FileWriter(logFile, true))) {
-                writer.write(formattedMessage.toString());
-            }
-        } catch (IOException e) {
-            System.err.println("Не удалось записать в лог: " + e.getMessage());
-        }
-    }
+	/** Записывает сообщение в лог. */
+	public static void log(Level level, String message) {
+	    // SMB-сообщения на уровне INFO не показываем нигде (в файле и UI)
+	    if (level == Level.INFO && message.contains("smb://")) {
+	        return;
+	    }
+	    
+		String time = TIME_FORMAT.format(new Date());
 
-    public static void info(String message) { log(Level.INFO, message); }
-    public static void warn(String message) { log(Level.WARN, message); }
-    public static void error(String message) { log(Level.ERROR, message); }
+		// Формируем префикс: [2026-11-02 12:00:00] [EX-1021] [INFO]
+		String prefix = "[" + time + "] " + getCurrentOpIdPrefix() + "[" + level + "] ";
 
-    public static void error(String message, Throwable t) {
-        log(Level.ERROR, message + ": " + t.getMessage());
-        t.printStackTrace();
-    }
+		// Для многострочных сообщений добавляем отступы, чтобы было красиво
+		String[] lines = message.split("\r?\n");
+		StringBuilder formattedMessage = new StringBuilder();
+		for (int i = 0; i < lines.length; i++) {
+			if (i == 0) {
+				formattedMessage.append(prefix).append(lines[i]).append("\n");
+			} else {
+				// Отступ для продолжения строки (выравниваем по тексту сообщения)
+				String indent = " ".repeat(prefix.length());
+				formattedMessage.append(indent).append(lines[i]).append("\n");
+			}
+		}
+
+		// 1. Вывод в консоль
+		if (level == Level.ERROR) {
+			System.err.print(formattedMessage);
+		} else {
+			System.out.print(formattedMessage);
+		}
+
+		// 2. Вывод в UI (если окно открыто)
+		if (uiLogList != null) {
+			String finalMessage = formattedMessage.toString().trim();
+			Platform.runLater(() -> {
+				uiLogData.add(finalMessage);
+
+				// Если превысили лимит — удаляем самые старые строки
+				if (uiLogData.size() > MAX_LOG_LINES) {
+					uiLogData.remove(0, uiLogData.size() - MAX_LOG_LINES);
+				}
+
+				// Автоматическая прокрутка вниз — внутри runLater, по отфильтрованному списку
+				uiLogList.scrollTo(uiLogFiltered.size() - 1);
+			});
+		}
+
+		// 3. Запись в файл
+		try {
+			File dir = new File(LOG_DIR);
+			if (!dir.exists()) {
+				dir.mkdirs();
+			}
+
+			String fileName = "app_" + DATE_FORMAT.format(new Date()) + ".log";
+			File logFile = new File(dir, fileName);
+
+			try (BufferedWriter writer = new BufferedWriter(new FileWriter(logFile, true))) {
+				writer.write(formattedMessage.toString());
+			}
+		} catch (IOException e) {
+			System.err.println("Не удалось записать в лог: " + e.getMessage());
+		}
+
+	}
+
+	public static void info(String message) {
+		log(Level.INFO, message);
+	}
+
+	public static void warn(String message) {
+		log(Level.WARN, message);
+	}
+
+	public static void error(String message) {
+		log(Level.ERROR, message);
+	}
+
+	public static void error(String message, Throwable t) {
+		log(Level.ERROR, message + ": " + t.getMessage());
+		t.printStackTrace();
+	}
 }
