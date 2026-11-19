@@ -89,14 +89,18 @@ public class AppLogger {
 	/** Записывает сообщение в лог. */
 	public static void log(Level level, String message) {
 	    // SMB-сообщения на уровне INFO не показываем нигде (в файле и UI)
-	    if (level == Level.INFO && message.contains("smb://")) {
-	        return;
-	    }
+//	    if (level == Level.INFO && message.contains("smb://")) {
+//	        return;
+//	    }
 	    
 		String time = TIME_FORMAT.format(new Date());
 
-		// Формируем префикс: [2026-11-02 12:00:00] [EX-1021] [INFO]
-		String prefix = "[" + time + "] " + getCurrentOpIdPrefix() + "[" + level + "] ";
+		String dbSign = contextDbSign.get();
+		String prefix = "[" + time + "] " + getCurrentOpIdPrefix();
+		if (dbSign != null && !dbSign.isBlank()) {
+		    prefix += "[" + dbSign + "] ";
+		}
+		prefix += "[" + level + "] ";
 
 		// Для многострочных сообщений добавляем отступы, чтобы было красиво
 		String[] lines = message.split("\r?\n");
@@ -169,4 +173,8 @@ public class AppLogger {
 		log(Level.ERROR, message + ": " + t.getMessage());
 		t.printStackTrace();
 	}
+	
+    public static String getContextDbSign() {
+        return contextDbSign.get();
+    }
 }

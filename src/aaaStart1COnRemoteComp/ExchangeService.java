@@ -35,11 +35,11 @@ public class ExchangeService {
      * Выполняет выгрузку из центральной базы и загрузку в периферийные.
      */
     public static ExchangeResult unloadFromCentral(ServerInfo centralServer, List<ServerInfo> targets) {
-        String mainOpId = "EX-" + (System.currentTimeMillis() % 100000);
+        String mainOpId = "UC-" + (System.currentTimeMillis() % 100000);
         AppLogger.pushOperationId(mainOpId);
+        AppLogger.setContextDbSign(centralServer.getDbSign() != null ? centralServer.getDbSign().trim() : "");
 
         try {
-        	AppLogger.setContextDbSign(centralServer.getDbSign().trim());
             AppLogger.info("==========================================================");
             AppLogger.info("НАЧАЛО ПРОЦЕССА ВЫГРУЗКИ ИЗ ЦЕНТРА: " + centralServer.getName());
             AppLogger.info("==========================================================");
@@ -70,8 +70,6 @@ public class ExchangeService {
             }
             String writeToString = writeTo.toString();
 
-            // Создаём BAT и aeparams
-            String batContent = createUnloadBatContent(centralServer);
             String remoteShare = "smb://" + centralServer.getIp() + "/ae$/";
             String logShare = remoteShare + "Log/";
 
@@ -85,16 +83,20 @@ public class ExchangeService {
             }
             
             transfer.mkdir(remoteShare, "Log");
-            transfer.uploadBytes(batContent.getBytes(Charset.forName("Cp1251")), remoteShare, "unload.bat");
+
+            String batContent = createUnloadBatContent(centralServer);
 
             // Цикл с ретраями
             File localLog = null;
             for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-                AppLogger.info("Попытка выгрузки " + attempt + " из " + MAX_RETRIES);
-
                 String logFileName = generateLogFileName();
                 String prmContent = createUnloadPrmContent(logFileName, writeToString);
+                
+                // Загружаем файлы разом
+                transfer.uploadBytes(batContent.getBytes(Charset.forName("Cp1251")), remoteShare, "unload.bat");
                 transfer.uploadBytes(prmContent.getBytes(Charset.forName("Cp1251")), remoteShare, "aeparams.prm");
+                
+                AppLogger.info("Загружены unload.bat и aeparams.prm; Попытка выгрузки " + attempt + " из " + MAX_RETRIES);
 
                 // Запускаем
                 RemoteExecutor.ExecutionResult execResult = RemoteExecutor.execute(centralServer, "c:\\ae\\unload.bat");
@@ -156,9 +158,9 @@ public class ExchangeService {
     public static ExchangeResult unloadFromPeriphery(ServerInfo peripheralServer, ServerInfo centralServer) {
         String mainOpId = "UP-" + (System.currentTimeMillis() % 100000);
         AppLogger.pushOperationId(mainOpId);
+        AppLogger.setContextDbSign(peripheralServer.getDbSign() != null ? peripheralServer.getDbSign().trim() : "");
 
         try {
-        	AppLogger.setContextDbSign(peripheralServer.getDbSign().trim());
             AppLogger.info("==========================================================");
             AppLogger.info("НАЧАЛО ПРОЦЕССА ВЫГРУЗКИ ИЗ ПЕРИФЕРИИ: " + peripheralServer.getName());
             AppLogger.info("Центральная база: " + centralServer.getName());
@@ -170,10 +172,6 @@ public class ExchangeService {
             if (isBlank(peripheralServer.getSmbUser()) || isBlank(peripheralServer.getSmbPassword())) {
                 return new ExchangeResult(false, "У периферийного сервера не заполнены логин/пароль SMB.");
             }
-
-            String logFileName = generateLogFileName();
-            String prmContent = createUnloadPrmContent(logFileName, centralServer.getDbSign().trim());
-            String batContent = createUnloadBatContent(peripheralServer);
 
             String remoteShare = "smb://" + peripheralServer.getIp() + "/ae$/";
             String logShare = remoteShare + "Log/";
@@ -188,8 +186,16 @@ public class ExchangeService {
             }
             
             transfer.mkdir(remoteShare, "Log");
+
+            String logFileName = generateLogFileName();
+            String prmContent = createUnloadPrmContent(logFileName, centralServer.getDbSign().trim());
+            String batContent = createUnloadBatContent(peripheralServer);
+
+            // Загружаем файлы разом
             transfer.uploadBytes(prmContent.getBytes(Charset.forName("Cp1251")), remoteShare, "aeparams.prm");
             transfer.uploadBytes(batContent.getBytes(Charset.forName("Cp866")), remoteShare, "unload.bat");
+            
+            AppLogger.info("Загружены unload.bat и aeparams.prm; Попытка выгрузки 1 из 1");
 
             RemoteExecutor.ExecutionResult execResult = RemoteExecutor.execute(peripheralServer, "c:\\ae\\unload.bat");
             AppLogger.info("Результат запуска BAT: " + execResult.getShortString());
@@ -220,7 +226,6 @@ public class ExchangeService {
                 allSuccess = loadResult.isSuccess();
             }
 
-
             if (allSuccess) {
                 return new ExchangeResult(true, "УСПЕШНОЕ ЗАВЕРШЕНИЕ ПРОЦЕССА ВЫГРУЗКИ ИЗ ПЕРИФЕРИИ И ЗАГРУЗКИ В ЦЕНТР");
             } else {
@@ -241,8 +246,13 @@ public class ExchangeService {
     // ============================================================
 
     private static ExchangeResult loadToCenter(ServerInfo centralServer, ServerInfo peripheralServer) {
-        String subOpId = "LC-" + (System.currentTimeMillis() % 1000);
+        String subOpId = "DC-" + (System.currentTimeMillis() % 1000);
         AppLogger.pushOperationId(subOpId);
+        
+        // Меняем контекст на центральную базу (для лога)
+        String previousContext = AppLogger.getContextDbSign();
+        AppLogger.setContextDbSign(centralServer.getDbSign() != null ? centralServer.getDbSign().trim() : "");
+
         try {
             AppLogger.info(">>> НАЧАЛО ЗАГРУЗКИ В ЦЕНТРАЛЬНУЮ БАЗУ: " + centralServer.getName() + " <<<");
 
@@ -254,14 +264,16 @@ public class ExchangeService {
             transfer.mkdir(remoteShare, "Log");
 
             String batContent = createUnloadBatContent(centralServer);
-            transfer.uploadBytes(batContent.getBytes(Charset.forName("Cp1251")), remoteShare, "unload.bat");
 
             for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-                AppLogger.info("Попытка загрузки в центр " + attempt + " из " + MAX_RETRIES);
-
                 String logFileName = generateLogFileName();
                 String prmContent = createLoadPrmContent(logFileName, peripheralServer.getDbSign().trim());
+                
+                // Загружаем файлы разом
+                transfer.uploadBytes(batContent.getBytes(Charset.forName("Cp1251")), remoteShare, "unload.bat");
                 transfer.uploadBytes(prmContent.getBytes(Charset.forName("Cp1251")), remoteShare, "aeparams.prm");
+                
+                AppLogger.info("Загружены unload.bat и aeparams.prm; Попытка загрузки " + attempt + " из " + MAX_RETRIES);
 
                 RemoteExecutor.ExecutionResult execResult = RemoteExecutor.execute(centralServer, "c:\\ae\\unload.bat");
                 AppLogger.info("Результат запуска BAT: " + execResult.getShortString());
@@ -293,6 +305,7 @@ public class ExchangeService {
             return new ExchangeResult(false, "Ошибка: " + e.getMessage());
         } finally {
             AppLogger.popOperationId();
+            AppLogger.setContextDbSign(previousContext);
         }
     }
 
@@ -371,8 +384,13 @@ public class ExchangeService {
     }
     
     private static ExchangeResult loadToPeriphery(ServerInfo peripheralServer, ServerInfo centralServer) {
-        String subOpId = "LD-" + (System.currentTimeMillis() % 1000);
+        String subOpId = "DP-" + (System.currentTimeMillis() % 1000);
         AppLogger.pushOperationId(subOpId);
+        
+        // Меняем контекст на периферийную базу
+        String previousContext = AppLogger.getContextDbSign();
+        AppLogger.setContextDbSign(peripheralServer.getDbSign() != null ? peripheralServer.getDbSign().trim() : "");
+
         try {
             AppLogger.info("==========================================================");
             AppLogger.info(">>> НАЧАЛО ЗАГРУЗКИ В ПЕРИФЕРИЙНУЮ БАЗУ: " + peripheralServer.getName() + " <<<");
@@ -385,7 +403,6 @@ public class ExchangeService {
                 return new ExchangeResult(false, "У центральной базы не заполнен DBSIGN.");
             }
 
-            String aePath = "c:\\ae\\";
             String remoteShare = "smb://" + peripheralServer.getIp() + "/ae$/";
             String logShare = remoteShare + "Log/";
 
@@ -394,14 +411,16 @@ public class ExchangeService {
             transfer.mkdir(remoteShare, "Log");
 
             String batContent = createPeripheryLoadBatContent(peripheralServer);
-            transfer.uploadBytes(batContent.getBytes(Charset.forName("Cp1251")), remoteShare, "unload.bat");
 
             for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-                AppLogger.info("Попытка загрузки " + attempt + " из " + MAX_RETRIES);
-
                 String logFileName = generateLogFileName();
                 String prmContent = createPeripheryLoadPrmContent(logFileName, centralServer.getDbSign().trim());
+                
+                // Загружаем файлы разом
+                transfer.uploadBytes(batContent.getBytes(Charset.forName("Cp1251")), remoteShare, "unload.bat");
                 transfer.uploadBytes(prmContent.getBytes(Charset.forName("Cp1251")), remoteShare, "aeparams.prm");
+                
+                AppLogger.info("Загружены unload.bat и aeparams.prm; Попытка загрузки " + attempt + " из " + MAX_RETRIES);
 
                 RemoteExecutor.ExecutionResult execResult = RemoteExecutor.execute(peripheralServer, "c:\\ae\\unload.bat");
                 AppLogger.info("Результат запуска BAT: " + execResult.getShortString());
@@ -438,6 +457,7 @@ public class ExchangeService {
             return new ExchangeResult(false, "Ошибка: " + e.getMessage());
         } finally {
             AppLogger.popOperationId();
+            AppLogger.setContextDbSign(previousContext);
         }
     }
 

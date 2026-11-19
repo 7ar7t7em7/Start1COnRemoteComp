@@ -617,7 +617,7 @@ public class MainController {
                 ExchangeService.ExchangeResult result = ExchangeService.unloadFromCentral(centralServer, selected);
                 if (!result.isSuccess()) {
                     // Убрали showWarning, просто дублируем ошибку в лог (если она не была залогирована)
-                    AppLogger.error("Процесс завершен с ошибкой: " + result.getMessage());
+                    //AppLogger.error("Процесс завершен с ошибкой: " + result.getMessage());
                 }
                 return null;
             }

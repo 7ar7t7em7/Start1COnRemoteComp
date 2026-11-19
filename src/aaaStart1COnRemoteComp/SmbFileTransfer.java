@@ -119,9 +119,7 @@ public class SmbFileTransfer {
         if (!dir.exists()) {
             dir.mkdir();
             AppLogger.info("Создана папка: " + remoteSharePath + folderName);
-        } else {
-        	AppLogger.info("Папка уже существует: " + remoteSharePath + folderName);
-        }
+        } 
     }
     
     /**
