@@ -118,7 +118,7 @@ public class ExchangeService {
 
                 if (logResult.isSuccess()) {
                     AppLogger.info("Выгрузка успешно завершена с попытки " + attempt);
-                    // (Строку про маркеры успеха тоже нужно сделать milestone внутри LogMonitor)
+                    localLog = logResult.getLocalFile();
                     break;
                 } else {
                     AppLogger.warn("Попытка " + attempt + " завершилась ошибкой (смотрите лог 1С): " + logResult.getErrorMessage());
