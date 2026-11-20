@@ -19,6 +19,7 @@ import java.io.File;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Predicate;
 
 public class MainController {
 
@@ -34,10 +35,11 @@ public class MainController {
     private Button readDbButton;
 
     @FXML
-    private ListView<String> logArea;
+    private ListView<LogEntry> logArea;
 
     private final ObservableList<ServerInfo> servers = FXCollections.observableArrayList();
     private ComboBox<String> logFilterBox;
+    private CheckBox milestoneOnlyCheckbox;
 
     // Копия последнего применённого фильтра (база), чтобы переустановить его после пополнения списка
     private String currentLogFilterName;
@@ -45,66 +47,51 @@ public class MainController {
 
     @FXML
     private void initialize() {
-        // Связываем UI с логгером
+        // Связываем UI с логгером (фабрика ячеек задается внутри AppLogger)
         AppLogger.setUiLogArea(logArea);
 
-        // Настройка ячейки для лога
-        logArea.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE); // Разрешаем множественное выделение
+        // Настройка ячейки для лога (множественное выделение)
+        logArea.getSelectionModel().setSelectionMode(SelectionMode.MULTIPLE);
 
-        logArea.setCellFactory(lv -> {
-            ListCell<String> cell = new ListCell<>() {
-                @Override
-                protected void updateItem(String item, boolean empty) {
-                    super.updateItem(item, empty);
-                    if (empty || item == null) {
-                        setText(null);
-                        setStyle("");
-                    } else {
-                        setText(item);
-                        if (item.contains("[ERROR]")) {
-                            setStyle("-fx-text-fill: red;");
-                        } else if (item.contains("[WARN]")) {
-                            setStyle("-fx-text-fill: orange;");
-                        } else {
-                            setStyle("");
-                        }
-                    }
-                }
-            };
+        // Создаем контекстное меню для списка логов
+        ContextMenu logContextMenu = new ContextMenu();
 
-            // Создаем контекстное меню
-            ContextMenu cellMenu = new ContextMenu();
-
-            // Пункт 1: Копировать одну строку
-            MenuItem copySingleItem = new MenuItem("Копировать строку");
-            copySingleItem.setOnAction(e -> {
-                if (cell.getItem() != null) {
-                    copyToClipboard(cell.getItem());
-                }
-            });
-
-            // Пункт 2: Копировать всё выделенное
-            MenuItem copySelectedItem = new MenuItem("Копировать выделенное");
-            copySelectedItem.setOnAction(e -> {
-                List<String> selectedItems = logArea.getSelectionModel().getSelectedItems();
-                if (!selectedItems.isEmpty()) {
-                    copyToClipboard(String.join("\n", selectedItems));
-                }
-            });
-
-            // Пункт 3: Копировать весь лог
-            MenuItem copyAllItem = new MenuItem("Копировать весь лог");
-            copyAllItem.setOnAction(e -> {
-                if (!logArea.getItems().isEmpty()) {
-                    copyToClipboard(String.join("\n", logArea.getItems()));
-                }
-            });
-
-            cellMenu.getItems().addAll(copySingleItem, copySelectedItem, copyAllItem);
-            cell.setContextMenu(cellMenu);
-
-            return cell;
+        // Пункт 1: Копировать одну строку
+        MenuItem copySingleItem = new MenuItem("Копировать строку");
+        copySingleItem.setOnAction(e -> {
+            LogEntry selected = logArea.getSelectionModel().getSelectedItem();
+            if (selected != null) {
+                copyToClipboard(selected.getText());
+            }
         });
+
+        // Пункт 2: Копировать всё выделенное
+        MenuItem copySelectedItem = new MenuItem("Копировать выделенное");
+        copySelectedItem.setOnAction(e -> {
+            List<LogEntry> selectedItems = logArea.getSelectionModel().getSelectedItems();
+            if (!selectedItems.isEmpty()) {
+                StringBuilder sb = new StringBuilder();
+                for (LogEntry entry : selectedItems) {
+                    sb.append(entry.getText()).append("\n");
+                }
+                copyToClipboard(sb.toString().trim());
+            }
+        });
+
+        // Пункт 3: Копировать весь лог
+        MenuItem copyAllItem = new MenuItem("Копировать весь лог");
+        copyAllItem.setOnAction(e -> {
+            if (!logArea.getItems().isEmpty()) {
+                StringBuilder sb = new StringBuilder();
+                for (LogEntry entry : logArea.getItems()) {
+                    sb.append(entry.getText()).append("\n");
+                }
+                copyToClipboard(sb.toString().trim());
+            }
+        });
+
+        logContextMenu.getItems().addAll(copySingleItem, copySelectedItem, copyAllItem);
+        logArea.setContextMenu(logContextMenu);
 
         AppLogger.info("Приложение запущено.");
 
@@ -264,29 +251,31 @@ public class MainController {
     //  ФИЛЬТР ЛОГА
     // ============================================================
 
-    /** Создаёт комбобокс фильтра и размещает его над списком лога. */
-    /** Создаёт комбобокс фильтра и размещает его над списком лога. */
     private void setupLogFilter() {
         logFilterBox = new ComboBox<>();
         logFilterBox.setMaxWidth(Double.MAX_VALUE);
-
         refreshLogFilterItems();
 
-        // Подкладываем комбобокс над logArea: заменяем logArea в родителе
-        // на VBox(комбобокс + logArea). Вёрстку FXML менять не нужно.
+        milestoneOnlyCheckbox = new CheckBox("Только ключевые сообщения обмена");
+        milestoneOnlyCheckbox.setSelected(true); // По умолчанию включено
+
+        // Слушатели
+        logFilterBox.valueProperty().addListener((obs, oldVal, sel) -> applyLogFilter());
+        milestoneOnlyCheckbox.selectedProperty().addListener((obs, oldVal, sel) -> applyLogFilter());
+
+        // Вёрстка
         if (logArea.getParent() instanceof Pane parentPane) {
             VBox logBox = new VBox(4);
             VBox.setVgrow(logArea, Priority.ALWAYS);
 
-            int idx = parentPane.getChildren().indexOf(logArea); // ДО перекладывания
+            int idx = parentPane.getChildren().indexOf(logArea);
             if (idx >= 0) {
-                logBox.getChildren().add(logFilterBox); // logArea ещё на месте
-                logBox.getChildren().add(logArea);      // теперь logArea автоматически ушла из parentPane
-                parentPane.getChildren().add(idx, logBox); // logBox встаёт ровно на место logArea
+                logBox.getChildren().add(logFilterBox);
+                logBox.getChildren().add(milestoneOnlyCheckbox); // Добавляем чекбокс
+                logBox.getChildren().add(logArea);
+                parentPane.getChildren().add(idx, logBox);
             }
         }
-
-        logFilterBox.valueProperty().addListener((obs, oldVal, sel) -> applyLogFilter());
     }
 
 
@@ -308,31 +297,49 @@ public class MainController {
     /** Применяет выбранный фильтр к отображению лога. */
     private void applyLogFilter() {
         String sel = logFilterBox.getValue();
-        if (sel == null || sel.equals("Все базы")) {
-            currentLogFilterName = null;
-            AppLogger.setUiLogFilter(null);
-            return;
-        }
+        boolean milestoneOnly = milestoneOnlyCheckbox != null && milestoneOnlyCheckbox.isSelected();
 
-        ServerInfo selSrv = null;
-        for (ServerInfo s : servers) {
-            if (s.getName() != null && s.getName().equals(sel)) {
-                selSrv = s;
-                break;
+        // Базовый предикат: если включен чекбокс, показываем только вехи
+        Predicate<LogEntry> predicate = entry -> !milestoneOnly || entry.isMilestone();
+
+        // Если выбрана конкретная база — добавляем фильтр по операции
+        if (sel != null && !sel.equals("Все базы")) {
+            ServerInfo selSrv = null;
+            for (ServerInfo s : servers) {
+                if (s.getName() != null && s.getName().equals(sel)) {
+                    selSrv = s;
+                    break;
+                }
             }
-        }
-        if (selSrv == null) {
+            
+            if (selSrv != null) {
+                currentLogFilterName = selSrv.getName();
+                final String sign = selSrv.getDbSign() != null ? selSrv.getDbSign().trim() : "";
+
+                // Собираем корневые ID операций, связанных с этой базой
+                java.util.Set<String> relevantRootIds = new java.util.HashSet<>();
+                for (LogEntry entry : AppLogger.getUiLogData()) {
+                    if (sign.equals(entry.getDbSign())) {
+                        if (entry.getRootOpId() != null && !entry.getRootOpId().isEmpty()) {
+                            relevantRootIds.add(entry.getRootOpId());
+                        }
+                    }
+                }
+
+                // Объединяем: (Это веха) И (Относится к нашей базе ИЛИ к её операции)
+                predicate = predicate.and(entry -> {
+                    if (sign.equals(entry.getDbSign())) return true;
+                    if (entry.getRootOpId() == null || entry.getRootOpId().isEmpty()) return false;
+                    return relevantRootIds.contains(entry.getRootOpId());
+                });
+            } else {
+                currentLogFilterName = null;
+            }
+        } else {
             currentLogFilterName = null;
-            AppLogger.setUiLogFilter(null);
-            return;
         }
 
-        currentLogFilterName = selSrv.getName();
-        final String name = selSrv.getName();
-        final String sign = selSrv.getDbSign();
-        AppLogger.setUiLogFilter(line ->
-                (name != null && line.contains(name))
-                || (sign != null && !sign.isBlank() && line.contains(sign)));
+        AppLogger.setUiLogFilter(predicate);
     }
 
 

@@ -41,7 +41,7 @@ public class ExchangeService {
 
         try {
             AppLogger.info("==========================================================");
-            AppLogger.info("НАЧАЛО ПРОЦЕССА ВЫГРУЗКИ ИЗ ЦЕНТРА: " + centralServer.getName());
+            AppLogger.milestone("НАЧАЛО ПРОЦЕССА ВЫГРУЗКИ ИЗ ЦЕНТРА: " + centralServer.getName());
             AppLogger.info("==========================================================");
 
             // Проверки
@@ -118,7 +118,7 @@ public class ExchangeService {
 
                 if (logResult.isSuccess()) {
                     AppLogger.info("Выгрузка успешно завершена с попытки " + attempt);
-                    localLog = logResult.getLocalFile();
+                    // (Строку про маркеры успеха тоже нужно сделать milestone внутри LogMonitor)
                     break;
                 } else {
                     AppLogger.warn("Попытка " + attempt + " завершилась ошибкой (смотрите лог 1С): " + logResult.getErrorMessage());
@@ -208,9 +208,12 @@ public class ExchangeService {
             AppLogger.info("Лог-файл создан. Ожидаем завершения выгрузки...");
             LogMonitor.LogResult logResult = LogMonitor.waitAndDownload(transfer, logShare, logFileName, 1);
 
-            if (!logResult.isSuccess()) {
-                AppLogger.error("Выгрузка на периферии завершилась с ошибкой (см. лог 1С). Копирование файла отменено.");
-                return new ExchangeResult(false, "Выгрузка на периферии завершилась с ошибкой.");
+            if (logResult.isSuccess()) {
+                AppLogger.info("Выгрузка на периферии завершена успешно."); // техническая
+                AppLogger.milestone("В лог-файле найдено 1 маркеров успешного завершения. Всё готово."); 
+                // (Примечание: эта строка генерируется внутри LogMonitor, но если мы хотим её видеть, 
+                // нужно либо вызывать milestone из LogMonitor, либо дублировать здесь. 
+                // Лучше всего поменять AppLogger.info на AppLogger.milestone внутри LogMonitor.java)
             }
 
             // Только если выгрузка прошла успешно, копируем файл
@@ -254,7 +257,7 @@ public class ExchangeService {
         AppLogger.setContextDbSign(centralServer.getDbSign() != null ? centralServer.getDbSign().trim() : "");
 
         try {
-            AppLogger.info(">>> НАЧАЛО ЗАГРУЗКИ В ЦЕНТРАЛЬНУЮ БАЗУ: " + centralServer.getName() + " <<<");
+        	AppLogger.milestone(">>> НАЧАЛО ЗАГРУЗКИ В ЦЕНТРАЛЬНУЮ БАЗУ: " + centralServer.getName() + " <<<");
 
             String remoteShare = "smb://" + centralServer.getIp() + "/ae$/";
             String logShare = remoteShare + "Log/";
@@ -288,7 +291,7 @@ public class ExchangeService {
 
                 LogMonitor.LogResult logResult = LogMonitor.waitAndDownload(transfer, logShare, logFileName, 1);
                 if (logResult.isSuccess()) {
-                    AppLogger.info(">>> ЗАГРУЗКА В ЦЕНТР УСПЕШНО ЗАВЕРШЕНА <<<");
+                    AppLogger.milestone(">>> ЗАГРУЗКА В ЦЕНТР УСПЕШНО ЗАВЕРШЕНА <<<");
                     return new ExchangeResult(true, "Загрузка в центр завершена успешно");
                 } else {
                     AppLogger.warn("Попытка загрузки в центр " + attempt + " завершилась ошибкой.");
@@ -393,7 +396,7 @@ public class ExchangeService {
 
         try {
             AppLogger.info("==========================================================");
-            AppLogger.info(">>> НАЧАЛО ЗАГРУЗКИ В ПЕРИФЕРИЙНУЮ БАЗУ: " + peripheralServer.getName() + " <<<");
+            AppLogger.milestone(">>> НАЧАЛО ЗАГРУЗКИ В ПЕРИФЕРИЙНУЮ БАЗУ: " + peripheralServer.getName() + " <<<");
             AppLogger.info("==========================================================");
 
             if (isBlank(peripheralServer.getProgram1CPath()) || isBlank(peripheralServer.getDatabasePath())) {
@@ -439,7 +442,7 @@ public class ExchangeService {
                 LogMonitor.LogResult logResult = LogMonitor.waitAndDownload(transfer, logShare, logFileName, 1);
 
                 if (logResult.isSuccess()) {
-                    AppLogger.info(">>> ЗАГРУЗКА НА " + peripheralServer.getName() + " УСПЕШНО ЗАВЕРШЕНА <<<");
+                    AppLogger.milestone(">>> ЗАГРУЗКА НА " + peripheralServer.getName() + " УСПЕШНО ЗАВЕРШЕНА <<<");
                     return new ExchangeResult(true, "Загрузка на периферию завершена успешно");
                 } else {
                     AppLogger.warn("Попытка загрузки " + attempt + " завершилась ошибкой.");

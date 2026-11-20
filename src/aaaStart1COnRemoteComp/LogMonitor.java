@@ -72,7 +72,7 @@ public class LogMonitor {
                 }
 
                 if (successCount >= expectedOperations) {
-                    AppLogger.info("В лог-файле найдено " + successCount
+                    AppLogger.milestone("В лог-файле найдено " + successCount
                             + " маркеров успешного завершения. Всё готово.");
                     break;
                 }
