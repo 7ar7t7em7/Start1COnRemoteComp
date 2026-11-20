@@ -299,10 +299,8 @@ public class MainController {
         String sel = logFilterBox.getValue();
         boolean milestoneOnly = milestoneOnlyCheckbox != null && milestoneOnlyCheckbox.isSelected();
 
-        // Базовый предикат: если включен чекбокс, показываем только вехи
         Predicate<LogEntry> predicate = entry -> !milestoneOnly || entry.isMilestone();
 
-        // Если выбрана конкретная база — добавляем фильтр по операции
         if (sel != null && !sel.equals("Все базы")) {
             ServerInfo selSrv = null;
             for (ServerInfo s : servers) {
@@ -316,21 +314,32 @@ public class MainController {
                 currentLogFilterName = selSrv.getName();
                 final String sign = selSrv.getDbSign() != null ? selSrv.getDbSign().trim() : "";
 
-                // Собираем корневые ID операций, связанных с этой базой
-                java.util.Set<String> relevantRootIds = new java.util.HashSet<>();
+                // Ищем ПОЛНЫЕ ID операций, в которых участвовала эта база
+                java.util.Set<String> relevantFullIds = new java.util.HashSet<>();
                 for (LogEntry entry : AppLogger.getUiLogData()) {
                     if (sign.equals(entry.getDbSign())) {
-                        if (entry.getRootOpId() != null && !entry.getRootOpId().isEmpty()) {
-                            relevantRootIds.add(entry.getRootOpId());
+                        if (entry.getFullOpId() != null && !entry.getFullOpId().isEmpty()) {
+                            relevantFullIds.add(entry.getFullOpId());
                         }
                     }
                 }
 
-                // Объединяем: (Это веха) И (Относится к нашей базе ИЛИ к её операции)
+                // Показываем строки, если:
+                // 1. База совпадает
+                // 2. ИЛИ полный ID операции начинается с одного из найденных (чтобы захватить родительские вызовы)
+                // 3. НО не показываем другие ветки (например, DP-959, если мы ищем DP-532)
                 predicate = predicate.and(entry -> {
                     if (sign.equals(entry.getDbSign())) return true;
-                    if (entry.getRootOpId() == null || entry.getRootOpId().isEmpty()) return false;
-                    return relevantRootIds.contains(entry.getRootOpId());
+                    
+                    if (entry.getFullOpId() == null || entry.getFullOpId().isEmpty()) return false;
+                    
+                    // Если текущая строка принадлежит искомой базе или является её родителем (например, корневой UC-7753)
+                    for (String relevantId : relevantFullIds) {
+                        if (entry.getFullOpId().equals(relevantId) || relevantId.startsWith(entry.getFullOpId())) {
+                            return true;
+                        }
+                    }
+                    return false;
                 });
             } else {
                 currentLogFilterName = null;

@@ -3,17 +3,15 @@ package aaaStart1COnRemoteComp;
 public class LogEntry {
     private final String text;
     private final String rootOpId;
+    private final String fullOpId; // <-- ДОБАВИТЬ: полный ID (например, "UC-7753-DP-532")
     private final String dbSign;
     private final AppLogger.Level level;
-    private final boolean isMilestone; // Флаг: является ли сообщение ключевым для обмена
+    private final boolean isMilestone;
 
-    public LogEntry(String text, String rootOpId, String dbSign, AppLogger.Level level) {
-        this(text, rootOpId, dbSign, level, false);
-    }
-
-    public LogEntry(String text, String rootOpId, String dbSign, AppLogger.Level level, boolean isMilestone) {
+    public LogEntry(String text, String rootOpId, String fullOpId, String dbSign, AppLogger.Level level, boolean isMilestone) {
         this.text = text;
         this.rootOpId = rootOpId;
+        this.fullOpId = fullOpId;
         this.dbSign = dbSign;
         this.level = level;
         this.isMilestone = isMilestone;
@@ -24,4 +22,5 @@ public class LogEntry {
     public String getDbSign() { return dbSign; }
     public AppLogger.Level getLevel() { return level; }
     public boolean isMilestone() { return isMilestone; }
+    public String getFullOpId() { return fullOpId; }
 }

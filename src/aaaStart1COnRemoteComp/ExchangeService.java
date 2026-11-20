@@ -88,8 +88,10 @@ public class ExchangeService {
 
             // Цикл с ретраями
             File localLog = null;
+            String fromSign = centralServer.getDbSign() != null ? centralServer.getDbSign().trim() : "";
+            String toSigns = writeToString;
             for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-                String logFileName = generateLogFileName();
+            	String logFileName = generateLogFileName(fromSign, toSigns);
                 String prmContent = createUnloadPrmContent(logFileName, writeToString);
                 
                 // Загружаем файлы разом
@@ -162,7 +164,7 @@ public class ExchangeService {
 
         try {
             AppLogger.info("==========================================================");
-            AppLogger.info("НАЧАЛО ПРОЦЕССА ВЫГРУЗКИ ИЗ ПЕРИФЕРИИ: " + peripheralServer.getName());
+            AppLogger.milestone("НАЧАЛО ПРОЦЕССА ВЫГРУЗКИ ИЗ ПЕРИФЕРИИ: " + peripheralServer.getName());
             AppLogger.info("Центральная база: " + centralServer.getName());
             AppLogger.info("==========================================================");
 
@@ -187,7 +189,10 @@ public class ExchangeService {
             
             transfer.mkdir(remoteShare, "Log");
 
-            String logFileName = generateLogFileName();
+            String logFileName = generateLogFileName(
+                    peripheralServer.getDbSign() != null ? peripheralServer.getDbSign().trim() : "",
+                    centralServer.getDbSign() != null ? centralServer.getDbSign().trim() : ""
+            );
             String prmContent = createUnloadPrmContent(logFileName, centralServer.getDbSign().trim());
             String batContent = createUnloadBatContent(peripheralServer);
 
@@ -210,10 +215,6 @@ public class ExchangeService {
 
             if (logResult.isSuccess()) {
                 AppLogger.info("Выгрузка на периферии завершена успешно."); // техническая
-                AppLogger.milestone("В лог-файле найдено 1 маркеров успешного завершения. Всё готово."); 
-                // (Примечание: эта строка генерируется внутри LogMonitor, но если мы хотим её видеть, 
-                // нужно либо вызывать milestone из LogMonitor, либо дублировать здесь. 
-                // Лучше всего поменять AppLogger.info на AppLogger.milestone внутри LogMonitor.java)
             }
 
             // Только если выгрузка прошла успешно, копируем файл
@@ -268,8 +269,11 @@ public class ExchangeService {
 
             String batContent = createUnloadBatContent(centralServer);
 
+            String fromSign = peripheralServer.getDbSign() != null ? peripheralServer.getDbSign().trim() : "";
+            String toSign = centralServer.getDbSign() != null ? centralServer.getDbSign().trim() : "";
             for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-                String logFileName = generateLogFileName();
+                String logFileName = generateLogFileName(fromSign, toSign);
+
                 String prmContent = createLoadPrmContent(logFileName, peripheralServer.getDbSign().trim());
                 
                 // Загружаем файлы разом
@@ -415,8 +419,11 @@ public class ExchangeService {
 
             String batContent = createPeripheryLoadBatContent(peripheralServer);
 
+            String fromSign = centralServer.getDbSign() != null ? centralServer.getDbSign().trim() : "";
+            String toSign = peripheralServer.getDbSign() != null ? peripheralServer.getDbSign().trim() : "";
             for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-                String logFileName = generateLogFileName();
+                String logFileName = generateLogFileName(fromSign, toSign);
+
                 String prmContent = createPeripheryLoadPrmContent(logFileName, centralServer.getDbSign().trim());
                 
                 // Загружаем файлы разом
@@ -550,8 +557,11 @@ public class ExchangeService {
                 "SharedMode=1\r\nReadFrom=" + readFrom + "\r\n";
     }
 
-    private static String generateLogFileName() {
-        return new SimpleDateFormat("yyMMdd_HHmmss").format(new Date()) + "aelog.txt";
+    private static String generateLogFileName(String fromDbSign, String toDbSign) {
+        String ts = new SimpleDateFormat("yyMMdd_HHmmss").format(new Date());
+        String from = (fromDbSign == null) ? "" : fromDbSign.trim();
+        String to = (toDbSign == null) ? "" : toDbSign.trim().replace(",", "_");
+        return ts + "-" + from + "-" + to + ".txt";
     }
 
     private static boolean isBlank(String s) {
