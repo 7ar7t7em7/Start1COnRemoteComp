@@ -446,26 +446,29 @@ public class MainController {
     private void editServer(ServerInfo server) {
         if (server == null) return;
 
-        ServerEditDialog dialog = new ServerEditDialog(getStage(), server, false, getPossibleParentNames(server));
-        dialog.showAndWait();
+        ServerEditDialog dialog = new ServerEditDialog(getStage(), server, false, getPossibleParentNames(server), false);
 
-        if (dialog.isOkClicked()) {
-            String oldName = server.getName();
-            dialog.applyToServer(server);
-            String newName = server.getName();
+        // Немодальное окно: можно открыть редактирование другой базы,
+        // не закрывая уже открытое окно.
+        dialog.showNonModal(() -> {
+            if (dialog.isOkClicked()) {
+                String oldName = server.getName();
+                dialog.applyToServer(server);
+                String newName = server.getName();
 
-            if (oldName != null && !oldName.equals(newName)) {
-                for (ServerInfo s : servers) {
-                    if (oldName.equals(s.getParentName())) {
-                        s.setParentName(newName);
+                if (oldName != null && !oldName.equals(newName)) {
+                    for (ServerInfo s : servers) {
+                        if (oldName.equals(s.getParentName())) {
+                            s.setParentName(newName);
+                        }
                     }
                 }
+                rebuildTree();
+                refreshLogFilterItems();
+                saveServers();
+                selectByName(server.getName());
             }
-            rebuildTree();
-            refreshLogFilterItems();
-            saveServers();
-            selectByName(server.getName());
-        }
+        });
     }
 
     @FXML

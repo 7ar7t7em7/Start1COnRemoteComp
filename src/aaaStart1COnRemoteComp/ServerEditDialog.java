@@ -39,10 +39,18 @@ public class ServerEditDialog {
     private TextField networkPathField; // Сетевой путь к папке PC
 
     public ServerEditDialog(Stage owner, ServerInfo server, boolean readOnly, List<String> possibleParents) {
+        this(owner, server, readOnly, possibleParents, true);
+    }
+
+    /**
+     * @param modal true — окно блокирует основное приложение; false — окно немодальное
+     */
+    public ServerEditDialog(Stage owner, ServerInfo server, boolean readOnly,
+            List<String> possibleParents, boolean modal) {
         this.server = server;
         this.stage = new Stage();
         stage.initOwner(owner);
-        stage.initModality(Modality.WINDOW_MODAL);
+        stage.initModality(modal ? Modality.WINDOW_MODAL : Modality.NONE);
         stage.setTitle(readOnly ? "Просмотр сервера" : (server == null ? "Новый сервер" : "Редактирование сервера"));
 
         GridPane grid = new GridPane();
@@ -182,5 +190,19 @@ public class ServerEditDialog {
     }
 
     public boolean isOkClicked() { return okClicked; }
+
+    /**
+     * Открывает окно без блокировки основного приложения.
+     * Результат обрабатывается после закрытия окна.
+     */
+    public void showNonModal(Runnable onHidden) {
+        stage.setOnHidden(event -> {
+            if (onHidden != null) {
+                onHidden.run();
+            }
+        });
+        stage.show();
+    }
+
     public void showAndWait() { stage.showAndWait(); }
 }
