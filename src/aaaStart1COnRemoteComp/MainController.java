@@ -707,34 +707,19 @@ public class MainController {
             return;
         }
 
-        AppLogger.info("--- Проверка доступности: " + server.getName() + " (" + server.getIp() + ") ---");
+        AppLogger.info("--- Проверка доступности: " + server.getName()
+                + " (" + server.getIp() + ") ---");
 
         Task<Void> pingTask = new Task<>() {
             @Override
-            protected Void call() throws Exception {
-                // Используем системный ping (надежнее для Windows)
-                ProcessBuilder pb = new ProcessBuilder("ping", "-n", "1", "-w", "2000", server.getIp());
-                pb.redirectErrorStream(true);
-                Process process = pb.start();
-
-                StringBuilder output = new StringBuilder();
-                try (java.io.BufferedReader reader = new java.io.BufferedReader(
-                        new java.io.InputStreamReader(process.getInputStream(), "Cp866"))) {
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        output.append(line);
-                    }
-                }
-
-                process.waitFor(5, java.util.concurrent.TimeUnit.SECONDS);
-                String result = output.toString();
-
-                if (result.contains("TTL=") || result.contains("ttl=") || result.contains("время=") || result.contains("time=")) {
-                    AppLogger.info("✅ Сервер " + server.getIp() + " ДОСТУПЕН (Ping прошел успешно).");
+            protected Void call() {
+                if (ServerAvailabilityChecker.isAvailable(server)) {
+                    AppLogger.info("Сервер " + server.getIp()
+                            + " ДОСТУПЕН (Ping прошел успешно).");
                 } else {
-                    AppLogger.warn("❌ Сервер " + server.getIp() + " НЕДОСТУПЕН (Ping не прошел).");
+                    AppLogger.warn("Сервер " + server.getIp()
+                            + " НЕДОСТУПЕН (Ping не прошел).");
                 }
-
                 return null;
             }
         };

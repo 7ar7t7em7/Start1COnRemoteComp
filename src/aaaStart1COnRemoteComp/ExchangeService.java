@@ -54,6 +54,9 @@ public class ExchangeService {
             if (isBlank(centralServer.getSmbUser()) || isBlank(centralServer.getSmbPassword())) {
                 return new ExchangeResult(false, "У центрального сервера не заполнены логин/пароль SMB/WMI.");
             }
+            if (!checkServerAvailability(centralServer, "выгрузка из центральной базы")) {
+                return new ExchangeResult(false, "Выгрузка отменена: центральный компьютер недоступен по Ping.");
+            }
 
             // Собираем DBSIGN
             StringBuilder writeTo = new StringBuilder();
@@ -174,6 +177,12 @@ public class ExchangeService {
             if (isBlank(peripheralServer.getSmbUser()) || isBlank(peripheralServer.getSmbPassword())) {
                 return new ExchangeResult(false, "У периферийного сервера не заполнены логин/пароль SMB.");
             }
+            if (!checkServerAvailability(peripheralServer, "выгрузка из периферийной базы")) {
+                return new ExchangeResult(false, "Выгрузка отменена: периферийный компьютер недоступен по Ping.");
+            }
+            if (!checkServerAvailability(centralServer, "передача выгруженных данных в центральную базу")) {
+                return new ExchangeResult(false, "Операция отменена: центральный компьютер недоступен по Ping.");
+            }
 
             String remoteShare = "smb://" + peripheralServer.getIp() + "/ae$/";
             String logShare = remoteShare + "Log/";
@@ -215,6 +224,13 @@ public class ExchangeService {
 
             if (logResult.isSuccess()) {
                 AppLogger.info("Выгрузка на периферии завершена успешно."); // техническая
+            }
+
+            // Перед копированием повторно проверяем оба компьютера:
+            // за время выгрузки состояние сети могло измениться.
+            if (!checkServerAvailability(peripheralServer, "чтение файла обмена с периферийного компьютера")
+                    || !checkServerAvailability(centralServer, "копирование файла обмена на центральный компьютер")) {
+                return new ExchangeResult(false, "Копирование отменено: один из компьютеров недоступен по Ping.");
             }
 
             // Только если выгрузка прошла успешно, копируем файл
@@ -260,6 +276,10 @@ public class ExchangeService {
         try {
         	AppLogger.milestone(">>> НАЧАЛО ЗАГРУЗКИ В ЦЕНТРАЛЬНУЮ БАЗУ: " + centralServer.getName() + " <<<");
 
+            if (!checkServerAvailability(centralServer, "загрузка в центральную базу")) {
+                return new ExchangeResult(false, "Загрузка отменена: центральный компьютер недоступен по Ping.");
+            }
+
             String remoteShare = "smb://" + centralServer.getIp() + "/ae$/";
             String logShare = remoteShare + "Log/";
 
@@ -298,27 +318,11 @@ public class ExchangeService {
                     AppLogger.milestone(">>> ЗАГРУЗКА В ЦЕНТР УСПЕШНО ЗАВЕРШЕНА <<<");
                     return new ExchangeResult(true, "Загрузка в центр завершена успешно");
                 } else {
-
-                    // Проверяем, нужно ли прекращать повторные попытки
-                    if (logResult.shouldStopRetrying()) {
-                        AppLogger.error("Повторные попытки загрузки отменены: "
-                                + logResult.getErrorMessage());
-
-                        return new ExchangeResult(
-                                false,
-                                logResult.getErrorMessage()
-                        );
-                    }
-
-                    AppLogger.warn("Попытка загрузки в центр " + attempt
-                            + " завершилась ошибкой.");
-
+                    AppLogger.warn("Попытка загрузки в центр " + attempt + " завершилась ошибкой.");
                     if (attempt < MAX_RETRIES) {
                         Thread.sleep(10000);
                     } else {
-                        return new ExchangeResult(false,
-                                "Все " + MAX_RETRIES
-                                + " попытки загрузки в центр провалились");
+                        return new ExchangeResult(false, "Все " + MAX_RETRIES + " попытки загрузки в центр провалились");
                     }
                 }
             }
@@ -345,9 +349,21 @@ public class ExchangeService {
         int filesCopiedCount = 0;
         long totalCopiedBytes = 0;
 
+        // Центральный сервер мог стать недоступен за время выгрузки.
+        if (!checkServerAvailability(centralServer, "чтение файлов обмена с центрального компьютера")) {
+            return false;
+        }
+
         for (ServerInfo peripheral : targets) {
             if (isBlank(peripheral.getIp()) || isBlank(peripheral.getSmbUser())) {
                 AppLogger.warn("Пропуск " + peripheral.getName() + ": не заполнены данные для SMB.");
+                allSuccess = false;
+                continue;
+            }
+
+            // Если конкретная периферия недоступна, пропускаем только её;
+            // остальные выбранные базы продолжаем обрабатывать.
+            if (!checkServerAvailability(peripheral, "копирование файла и загрузка в периферийную базу")) {
                 allSuccess = false;
                 continue;
             }
@@ -386,6 +402,13 @@ public class ExchangeService {
                 continue;
             }
 
+            // Повторная проверка непосредственно перед передачей файла.
+            if (!checkServerAvailability(centralServer, "чтение файла " + zipFileName)
+                    || !checkServerAvailability(peripheral, "приём файла " + zipFileName)) {
+                allSuccess = false;
+                continue;
+            }
+
             long copiedBytes = copyExchangeFile(centralServer, peripheral, zipFileName, "CP");
             if (copiedBytes > 0) {
                 filesCopiedCount++;
@@ -418,6 +441,10 @@ public class ExchangeService {
             AppLogger.info("==========================================================");
             AppLogger.milestone(">>> НАЧАЛО ЗАГРУЗКИ В ПЕРИФЕРИЙНУЮ БАЗУ: " + peripheralServer.getName() + " <<<");
             AppLogger.info("==========================================================");
+
+            if (!checkServerAvailability(peripheralServer, "загрузка в периферийную базу")) {
+                return new ExchangeResult(false, "Загрузка отменена: периферийный компьютер недоступен по Ping.");
+            }
 
             if (isBlank(peripheralServer.getProgram1CPath()) || isBlank(peripheralServer.getDatabasePath())) {
                 return new ExchangeResult(false, "У периферийного сервера не заполнены пути к 1С или базе.");
@@ -531,6 +558,32 @@ public class ExchangeService {
             File tempFile = new File(localTempFilePath);
             if (tempFile.exists()) tempFile.delete();
         }
+    }
+
+    /**
+     * Проверяет доступность сервера перед сетевой операцией.
+     * При неудаче записывает понятное сообщение в лог.
+     */
+    private static boolean checkServerAvailability(ServerInfo server, String operation) {
+        if (server == null || isBlank(server.getIp())) {
+            String name = server == null ? "неизвестный сервер" : server.getName();
+            AppLogger.error("Невозможно выполнить " + operation
+                    + ": у сервера " + name + " не заполнен IP-адрес.");
+            return false;
+        }
+
+        AppLogger.info("Проверяем доступность компьютера " + server.getName()
+                + " (" + server.getIp() + ") перед операцией: " + operation + ".");
+
+        if (!ServerAvailabilityChecker.isAvailable(server)) {
+            AppLogger.error("Компьютер " + server.getName() + " (" + server.getIp()
+                    + ") недоступен по Ping. Операция отменена: " + operation + ".");
+            return false;
+        }
+
+        AppLogger.info("Компьютер " + server.getName() + " (" + server.getIp()
+                + ") доступен по Ping.");
+        return true;
     }
 
     // ============================================================
