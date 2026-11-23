@@ -298,11 +298,27 @@ public class ExchangeService {
                     AppLogger.milestone(">>> ЗАГРУЗКА В ЦЕНТР УСПЕШНО ЗАВЕРШЕНА <<<");
                     return new ExchangeResult(true, "Загрузка в центр завершена успешно");
                 } else {
-                    AppLogger.warn("Попытка загрузки в центр " + attempt + " завершилась ошибкой.");
+
+                    // Проверяем, нужно ли прекращать повторные попытки
+                    if (logResult.shouldStopRetrying()) {
+                        AppLogger.error("Повторные попытки загрузки отменены: "
+                                + logResult.getErrorMessage());
+
+                        return new ExchangeResult(
+                                false,
+                                logResult.getErrorMessage()
+                        );
+                    }
+
+                    AppLogger.warn("Попытка загрузки в центр " + attempt
+                            + " завершилась ошибкой.");
+
                     if (attempt < MAX_RETRIES) {
                         Thread.sleep(10000);
                     } else {
-                        return new ExchangeResult(false, "Все " + MAX_RETRIES + " попытки загрузки в центр провалились");
+                        return new ExchangeResult(false,
+                                "Все " + MAX_RETRIES
+                                + " попытки загрузки в центр провалились");
                     }
                 }
             }

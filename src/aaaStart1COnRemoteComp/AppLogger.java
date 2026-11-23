@@ -150,9 +150,6 @@ public class AppLogger {
             // Объявляем currentDb, чтобы не было ошибки
             String currentDb = (dbSign != null) ? dbSign.trim() : null; 
 
-            // ДЕБАГ: выводим в консоль, чтобы увидеть, что реально пишется в лог
-            System.out.println("DEBUG AppLogger -> FullOp: [" + fullOp + "] | RootOp: [" + rootOp + "] | DB: [" + currentDb + "] | Msg: " + message);
-
             LogEntry entry = new LogEntry(finalMessage, rootOp, fullOp, currentDb, level, isMilestone);
             
             Platform.runLater(() -> {
