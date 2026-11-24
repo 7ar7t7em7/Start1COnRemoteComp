@@ -36,12 +36,14 @@ public class RemoteExecutor {
             if ("PsExec".equals(strategy)) {
                 return "PsExec (ExitCode=" + exitCode + "): " + output.trim().replace("\r\n", " ");
             } else {
-                return "WMI (PID=" + pid + ", ReturnValue=" + returnValue + ")";
+                return "WMI (PID=" + pid + ", ReturnValue=" + returnValue + ")"
+                        + (exitCode == 0 ? "" : ": " + output.trim().replace("\\r\\n", " "));
             }
         }
 
         public boolean isSuccess() {
-            return exitCode == 0 || "0".equals(returnValue);
+            if ("WMI".equals(strategy)) return pid > 0 && "0".equals(returnValue);
+            return exitCode == 0;
         }
     }
 
@@ -98,7 +100,7 @@ public class RemoteExecutor {
                 server.getSmbPassword(),
                 60
         );
-        String rawResult = wmi.runCommand(remoteBatPath);
+        String rawResult = wmi.runBat(remoteBatPath);
 
         long pid = -1;
         String returnValue = "N/A";
@@ -109,6 +111,7 @@ public class RemoteExecutor {
         java.util.regex.Matcher mRet = java.util.regex.Pattern.compile("ReturnValue\\s*=\\s*(\\d+)").matcher(rawResult);
         if (mRet.find()) returnValue = mRet.group(1);
 
-        return new ExecutionResult("WMI", pid, returnValue, 0, rawResult);
+        int exitCode = ("0".equals(returnValue) && pid > 0) ? 0 : 1;
+        return new ExecutionResult("WMI", pid, returnValue, exitCode, rawResult);
     }
 }

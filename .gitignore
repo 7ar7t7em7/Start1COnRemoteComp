@@ -1,0 +1,16 @@
+# Java compiled output
+/bin/
+*.class
+
+# Build output
+/build/
+/target/
+
+# Temporary and backup files
+*.tmp
+*.bak
+*.swp
+
+# Operating system files
+.DS_Store
+Thumbs.db
