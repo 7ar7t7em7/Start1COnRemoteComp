@@ -5,6 +5,7 @@ import javafx.collections.ObservableList;
 import javafx.concurrent.Task;
 import javafx.fxml.FXML;
 import javafx.geometry.Pos;
+import javafx.geometry.Insets;
 import javafx.scene.control.*;
 import javafx.scene.control.SelectionMode;
 import javafx.scene.input.MouseButton;
@@ -152,6 +153,11 @@ public class MainController {
             @Override
             protected void updateItem(String item, boolean empty) {
                 super.updateItem(item, empty);
+
+                // Фиксируем внутренние отступы ячейки, чтобы текст не менял
+                // положение при переходе строки в состояние выделения.
+                setPadding(new Insets(2, 5, 2, 5));
+
                 ServerInfo server = (getTreeTableRow() != null) ? getTreeTableRow().getItem() : null;
 
                 if (empty || item == null || server == null) {
