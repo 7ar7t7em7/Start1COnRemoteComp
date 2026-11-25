@@ -220,6 +220,15 @@ public class MainController {
                     onUnloadPeriphery(s);
                 }
             });
+            
+            // НОВЫЙ ПУНКТ: Полный обмен
+            MenuItem fullExchangeItem = new MenuItem("Полный обмен");
+            fullExchangeItem.setOnAction(e -> {
+                ServerInfo s = row.getItem();
+                if (s != null && !s.isCentral()) {
+                    onFullExchange(s);
+                }
+            });
 
             MenuItem editItem = new MenuItem("Редактировать");
             editItem.setOnAction(e -> {
@@ -233,7 +242,7 @@ public class MainController {
                 if (s != null) onPingServer(s);
             });
 
-            ContextMenu menu = new ContextMenu(exchangeItem, new SeparatorMenuItem(), pingItem, editItem);
+            ContextMenu menu = new ContextMenu(exchangeItem, fullExchangeItem, new SeparatorMenuItem(), pingItem, editItem);
             row.setContextMenu(menu);
 
             // Строки переиспользуются, поэтому подпись пункта обмена
@@ -245,6 +254,10 @@ public class MainController {
                     exchangeItem.setText(s.isCentral()
                             ? "Выгрузить из центра - Загрузить в периферию"
                             : "Выгрузить из периферии - Загрузить в центр");
+                    
+                    // Показываем "Полный обмен" только для периферийных баз
+                    fullExchangeItem.setVisible(!s.isCentral());
+                    
                     row.setContextMenu(menu);
                 }
             });
@@ -838,5 +851,69 @@ public class MainController {
         else if (mod10 >= 2 && mod10 <= 4 && (mod100 < 12 || mod100 > 14)) form = "минуты";
         else form = "минут";
         return m + " " + form;
+    }
+    
+    private void onFullExchange(ServerInfo peripheralServer) {
+        // Ищем центральную базу для этой периферии
+        ServerInfo centralServer = null;
+        for (ServerInfo s : servers) {
+            if (s.getName() != null && s.getName().equals(peripheralServer.getParentName())) {
+                centralServer = s;
+                break;
+            }
+        }
+
+        if (centralServer == null) {
+            showWarning("Не найдена центральная база для " + peripheralServer.getName());
+            return;
+        }
+
+        final ServerInfo finalCentral = centralServer;
+
+        Task<Void> fullExchangeTask = new Task<>() {
+            @Override
+            protected Void call() {
+                AppLogger.info("==========================================================");
+                AppLogger.milestone("НАЧАЛО ПОЛНОГО ОБМЕНА ДЛЯ: " + peripheralServer.getName());
+                AppLogger.info("==========================================================");
+
+                // ЭТАП 1 и 2: Выгрузка из центра и загрузка в периферию
+                // Передаем список из одной базы (нашей периферии)
+                List<ServerInfo> targets = java.util.Collections.singletonList(peripheralServer);
+                
+                AppLogger.milestone("ЭТАП 1/4: Выгрузка из Центра и Загрузка в Периферию");
+                ExchangeService.ExchangeResult step1 = ExchangeService.unloadFromCentral(finalCentral, targets);
+                
+                if (!step1.isSuccess()) {
+                    AppLogger.error("Полный обмен прерван на этапе 1-2: " + step1.getMessage());
+                    return null;
+                }
+
+                // Небольшая пауза, чтобы 1С точно отпустила файлы
+                try { Thread.sleep(2000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); return null; }
+
+                // ЭТАП 3 и 4: Выгрузка из периферии и загрузка в центр
+                AppLogger.milestone("ЭТАП 3/4: Выгрузка из Периферии и Загрузка в Центр");
+                ExchangeService.ExchangeResult step2 = ExchangeService.unloadFromPeriphery(peripheralServer, finalCentral);
+                
+                if (!step2.isSuccess()) {
+                    AppLogger.error("Полный обмен прерван на этапе 3-4: " + step2.getMessage());
+                } else {
+                    AppLogger.milestone("ПОЛНЫЙ ОБМЕН ДЛЯ " + peripheralServer.getName() + " УСПЕШНО ЗАВЕРШЕН.");
+                }
+                
+                return null;
+            }
+        };
+
+        fullExchangeTask.setOnFailed(e -> {
+            Throwable ex = fullExchangeTask.getException();
+            AppLogger.error("Критическая ошибка в фоновом потоке (Полный обмен): " + ex.getMessage());
+            javafx.application.Platform.runLater(() -> showWarning("Произошла ошибка при полном обмене. Подробности в логе."));
+        });
+
+        Thread thread = new Thread(fullExchangeTask);
+        thread.setDaemon(true);
+        thread.start();
     }
 }
