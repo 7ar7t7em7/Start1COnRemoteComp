@@ -31,6 +31,8 @@ public class MainController {
 	private TreeTableColumn<ServerInfo, String> colName;
 	@FXML
 	private TreeTableColumn<ServerInfo, String> colLast;
+	@FXML
+	private TreeTableColumn<ServerInfo, String> colState;
 
     @FXML
     private Button readDbButton;
@@ -95,6 +97,7 @@ public class MainController {
         logArea.setContextMenu(logContextMenu);
 
         AppLogger.info("Приложение запущено.");
+        ExchangeStateStore.setChangeListener(() -> javafx.application.Platform.runLater(() -> treeTableView.refresh()));
 
         jcifs.Config.setProperty("jcifs.smb.client.attrExpirationPeriod", "0");
 
@@ -135,6 +138,34 @@ public class MainController {
             }
         });
         colLast.setStyle("-fx-alignment: CENTER;");
+
+        colState.setCellValueFactory(p -> {
+            ServerInfo server = p.getValue().getValue();
+            return new javafx.beans.property.SimpleStringProperty(formatExchangeState(server));
+        });
+        colState.setCellFactory(_ -> new TreeTableCell<ServerInfo, String>() {
+            @Override
+            protected void updateItem(String item, boolean empty) {
+                super.updateItem(item, empty);
+                ServerInfo server = getTreeTableRow() == null ? null : getTreeTableRow().getItem();
+                ExchangeState state = server == null ? null : ExchangeStateStore.get(server);
+                if (empty || item == null || item.isBlank()) {
+                    setText(null);
+                    setTooltip(null);
+                    setStyle("");
+                } else {
+                    setText(item);
+                    setTooltip(state == null ? null : new Tooltip(buildStateTooltip(state)));
+                    String color = "#555555";
+                    if (state != null) {
+                        if (state.getStatus() == ExchangeStatus.SUCCESS) color = "#16803c";
+                        else if (state.getStatus() == ExchangeStatus.FAILED || state.getStatus() == ExchangeStatus.INTERRUPTED) color = "#c62828";
+                        else if (state.getStatus() == ExchangeStatus.RUNNING) color = "#b7791f";
+                    }
+                    setStyle("-fx-text-fill: " + color + "; -fx-padding: 2 5 2 5;");
+                }
+            }
+        });
 
         // ==== Кнопка обновления в заголовке "Последний обмен" ====
         Button refreshBtn = new Button("⟳");
@@ -743,6 +774,41 @@ public class MainController {
      * "<dbSign>1.zip" в сетевой папке PC центральной базы.
      * Сетевой путь задаётся в реквизите "Сетевой путь" центральной записи.
      */
+    private String formatExchangeState(ServerInfo server) {
+        if (server == null || server.isCentral()) return "";
+        ExchangeState state = ExchangeStateStore.get(server);
+        if (state == null || state.getStage() == null || state.getStatus() == null) return "";
+        String status;
+        switch (state.getStatus()) {
+            case RUNNING: status = "выполняется"; break;
+            case SUCCESS: status = "успешно"; break;
+            case FAILED: status = "ошибка"; break;
+            case SKIPPED: status = "пропущено"; break;
+            case INTERRUPTED: status = "прервано"; break;
+            default: status = state.getStatus().name();
+        }
+        String time = "";
+        String dateTime = state.getFinishedAt() != null ? state.getFinishedAt() : state.getStartedAt();
+        if (dateTime != null && dateTime.length() >= 16) time = dateTime.substring(11, 16);
+        String message = state.getMessage() == null ? "" : state.getMessage().replaceAll("[\\r\\n]+", " ").trim();
+        if (state.getStatus() == ExchangeStatus.RUNNING || "Выполняется".equalsIgnoreCase(message)) message = "";
+        if (message.length() > 65) message = message.substring(0, 62) + "...";
+        return state.getStage().getTitle() + " • " + status + (time.isBlank() ? "" : " • " + time)
+                + (message.isBlank() ? "" : " • " + message);
+    }
+
+    private String buildStateTooltip(ExchangeState state) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(state.getStage() == null ? "Этап неизвестен" : state.getStage().getTitle());
+        sb.append("\nСтатус: ").append(state.getStatus());
+        if (state.getStartedAt() != null) sb.append("\nНачало: ").append(state.getStartedAt());
+        if (state.getFinishedAt() != null) sb.append("\nЗавершение: ").append(state.getFinishedAt());
+        if (state.getAttempt() > 0) sb.append("\nПопытка: ").append(state.getAttempt());
+        if (state.getOperationId() != null) sb.append("\nОперация: ").append(state.getOperationId());
+        if (state.getMessage() != null && !state.getMessage().isBlank()) sb.append("\n").append(state.getMessage());
+        return sb.toString();
+    }
+
     private String getLastInfo(ServerInfo s) {
         if (s == null || s.isCentral()) return "";
 

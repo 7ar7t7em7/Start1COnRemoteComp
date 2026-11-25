@@ -5,6 +5,7 @@ package aaaStart1COnRemoteComp;
  */
 public class ServerInfo {
 	
+	private String id;
 	private String parentName;
 	
 	/** Признак/код базы данных (DBSIGN из _1SDBSET) */
@@ -60,9 +61,14 @@ this.databasePath = databasePath;
 this.databaseName = databaseName;
 this.dbSign = dbSign;
 this.central = central;
+ensureId();
 }
 
     // ===== Геттеры и сеттеры =====
+
+    public String getId() { return id; }
+    public void setId(String id) { this.id = id; }
+    public void ensureId() { if (id == null || id.isBlank()) id = java.util.UUID.randomUUID().toString(); }
     
     public String getSmbUser() { return smbUser; }
     public void setSmbUser(String smbUser) { this.smbUser = smbUser; }

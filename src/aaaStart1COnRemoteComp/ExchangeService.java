@@ -40,6 +40,9 @@ public class ExchangeService {
         AppLogger.setContextDbSign(centralServer.getDbSign() != null ? centralServer.getDbSign().trim() : "");
 
         try {
+            for (ServerInfo target : targets) {
+                ExchangeStateStore.begin(target, ExchangeStage.UNLOAD_FROM_CENTER, mainOpId);
+            }
             AppLogger.info("==========================================================");
             AppLogger.milestone("НАЧАЛО ПРОЦЕССА ВЫГРУЗКИ ИЗ ЦЕНТРА: " + centralServer.getName());
             AppLogger.info("==========================================================");
@@ -102,6 +105,7 @@ public class ExchangeService {
             AppLogger.info("unload.bat и aeparams.prm загружены на сервер. Повторные попытки будут использовать эти же файлы.");
 
             for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+                for (ServerInfo target : targets) ExchangeStateStore.updateAttempt(target, attempt, mainOpId);
                 if (attempt > 1) {
                     try {
                         // Удаляем предыдущий лог, чтобы не принять старую ошибку
@@ -156,8 +160,12 @@ public class ExchangeService {
                 return new ExchangeResult(false, "Выгрузка не завершилась успешно.");
             }
 
+            for (ServerInfo target : targets) {
+                ExchangeStateStore.finish(target, ExchangeStatus.SUCCESS, "Выгрузка из центральной базы завершена", 0, mainOpId);
+            }
+
             // Копируем файлы на периферию
-            boolean allSuccess = copyAndLoadToPeripherals(centralServer, targets);
+            boolean allSuccess = copyAndLoadToPeripherals(centralServer, targets, mainOpId);
             if (allSuccess) {
                 return new ExchangeResult(true, "УСПЕШНОЕ ЗАВЕРШЕНИЕ ПРОЦЕССА ВЫГРУЗКИ ИЗ ЦЕНТРА И ЗАГРУЗКИ В ПЕРИФЕРИЮ");
             } else {
@@ -168,6 +176,9 @@ public class ExchangeService {
             AppLogger.error("КРИТИЧЕСКАЯ ОШИБКА В ПРОЦЕССЕ ВЫГРУЗКИ: " + e.getMessage());
             return new ExchangeResult(false, "Критическая ошибка: " + e.getMessage());
         } finally {
+            for (ServerInfo target : targets) {
+                ExchangeStateStore.failIfRunning(target, "Выгрузка из центральной базы не завершена; подробности в журнале приложения", mainOpId);
+            }
             AppLogger.popOperationId();
             AppLogger.clearContextDbSign();
         }
@@ -182,6 +193,7 @@ public class ExchangeService {
         AppLogger.setContextDbSign(peripheralServer.getDbSign() != null ? peripheralServer.getDbSign().trim() : "");
 
         try {
+            ExchangeStateStore.begin(peripheralServer, ExchangeStage.UNLOAD_FROM_PERIPHERY, mainOpId);
             AppLogger.info("==========================================================");
             AppLogger.milestone("НАЧАЛО ПРОЦЕССА ВЫГРУЗКИ ИЗ ПЕРИФЕРИИ: " + peripheralServer.getName());
             AppLogger.info("Центральная база: " + centralServer.getName());
@@ -228,6 +240,7 @@ public class ExchangeService {
 
             LogMonitor.LogResult successfulLogResult = null;
             for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+                ExchangeStateStore.updateAttempt(peripheralServer, attempt, mainOpId);
                 if (attempt > 1) {
                     try {
                         // Старый лог удаляем, иначе его маркер ошибки будет найден снова.
@@ -295,9 +308,17 @@ public class ExchangeService {
             if (copiedBytes > 0) {
                 long sizeInKb = copiedBytes / 1024;
                 AppLogger.info("Скачан и отправлен файл обмена: " + fileName + " (Размер: " + sizeInKb + " КБ)");
+                ExchangeStateStore.finish(peripheralServer, ExchangeStatus.SUCCESS,
+                        "Выгрузка из периферийной базы завершена, файл передан в ЦБ", 0, mainOpId);
 
-                ExchangeResult loadResult = loadToCenter(centralServer, peripheralServer);
+                ExchangeStateStore.begin(peripheralServer, ExchangeStage.LOAD_TO_CENTER, mainOpId);
+                ExchangeResult loadResult = loadToCenter(centralServer, peripheralServer, mainOpId);
+                ExchangeStateStore.finish(peripheralServer, loadResult.isSuccess() ? ExchangeStatus.SUCCESS : ExchangeStatus.FAILED,
+                        loadResult.getMessage(), 0, mainOpId);
                 allSuccess = loadResult.isSuccess();
+            } else {
+                ExchangeStateStore.finish(peripheralServer, ExchangeStatus.FAILED,
+                        "Не удалось скопировать файл обмена в центральную базу", 0, mainOpId);
             }
 
             if (allSuccess) {
@@ -310,6 +331,7 @@ public class ExchangeService {
             AppLogger.error("КРИТИЧЕСКАЯ ОШИБКА: " + e.getMessage());
             return new ExchangeResult(false, "Критическая ошибка: " + e.getMessage());
         } finally {
+            ExchangeStateStore.failIfRunning(peripheralServer, "Выгрузка из периферийной базы не завершена; подробности в журнале приложения", mainOpId);
             AppLogger.popOperationId();
             AppLogger.clearContextDbSign();
         }
@@ -319,7 +341,7 @@ public class ExchangeService {
     //  ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ
     // ============================================================
 
-    private static ExchangeResult loadToCenter(ServerInfo centralServer, ServerInfo peripheralServer) {
+    private static ExchangeResult loadToCenter(ServerInfo centralServer, ServerInfo peripheralServer, String operationId) {
         String subOpId = "DC-" + (System.currentTimeMillis() % 1000);
         AppLogger.pushOperationId(subOpId);
         
@@ -356,6 +378,7 @@ public class ExchangeService {
             AppLogger.info("unload.bat и aeparams.prm загружены на центральный сервер. Повторные попытки будут использовать эти же файлы.");
 
             for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+                ExchangeStateStore.updateAttempt(peripheralServer, attempt, operationId);
                 if (attempt > 1) {
                     try {
                         // Удаляем предыдущий лог, чтобы не принять старый результат за новый.
@@ -406,12 +429,16 @@ public class ExchangeService {
         }
     }
 
-    private static boolean copyAndLoadToPeripherals(ServerInfo centralServer, List<ServerInfo> targets) {
+    private static boolean copyAndLoadToPeripherals(ServerInfo centralServer, List<ServerInfo> targets, String operationId) {
         AppLogger.info("Начинаем копирование и загрузку на периферийные серверы...");
         try {
             Thread.sleep(3000);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
+            for (ServerInfo peripheral : targets) {
+                ExchangeStateStore.begin(peripheral, ExchangeStage.LOAD_TO_PERIPHERY, operationId);
+                ExchangeStateStore.finish(peripheral, ExchangeStatus.FAILED, "Операция прервана до копирования файла", 0, operationId);
+            }
             return false;
         }
 
@@ -421,11 +448,18 @@ public class ExchangeService {
 
         // Центральный сервер мог стать недоступен за время выгрузки.
         if (!checkServerAvailability(centralServer, "чтение файлов обмена с центрального компьютера")) {
+            for (ServerInfo peripheral : targets) {
+                ExchangeStateStore.begin(peripheral, ExchangeStage.LOAD_TO_PERIPHERY, operationId);
+                ExchangeStateStore.finish(peripheral, ExchangeStatus.FAILED,
+                        "Центральный компьютер недоступен при чтении файлов обмена", 0, operationId);
+            }
             return false;
         }
 
         for (ServerInfo peripheral : targets) {
+            ExchangeStateStore.begin(peripheral, ExchangeStage.LOAD_TO_PERIPHERY, operationId);
             if (isBlank(peripheral.getIp()) || isBlank(peripheral.getSmbUser())) {
+                ExchangeStateStore.finish(peripheral, ExchangeStatus.FAILED, "Не заполнены данные для SMB", 0, operationId);
                 AppLogger.warn("Пропуск " + peripheral.getName() + ": не заполнены данные для SMB.");
                 allSuccess = false;
                 continue;
@@ -434,6 +468,7 @@ public class ExchangeService {
             // Если конкретная периферия недоступна, пропускаем только её;
             // остальные выбранные базы продолжаем обрабатывать.
             if (!checkServerAvailability(peripheral, "копирование файла и загрузка в периферийную базу")) {
+                ExchangeStateStore.finish(peripheral, ExchangeStatus.FAILED, "Периферийный компьютер недоступен по Ping", 0, operationId);
                 allSuccess = false;
                 continue;
             }
@@ -468,6 +503,7 @@ public class ExchangeService {
 
             if (!fileFound) {
                 AppLogger.error("Файл " + zipFileName + " так и не появился на центральном сервере.");
+                ExchangeStateStore.finish(peripheral, ExchangeStatus.FAILED, "Файл обмена не появился на центральном сервере", 0, operationId);
                 allSuccess = false;
                 continue;
             }
@@ -475,6 +511,7 @@ public class ExchangeService {
             // Повторная проверка непосредственно перед передачей файла.
             if (!checkServerAvailability(centralServer, "чтение файла " + zipFileName)
                     || !checkServerAvailability(peripheral, "приём файла " + zipFileName)) {
+                ExchangeStateStore.finish(peripheral, ExchangeStatus.FAILED, "Один из компьютеров недоступен по Ping при копировании файла", 0, operationId);
                 allSuccess = false;
                 continue;
             }
@@ -483,9 +520,12 @@ public class ExchangeService {
             if (copiedBytes > 0) {
                 filesCopiedCount++;
                 totalCopiedBytes += copiedBytes;
-                ExchangeResult loadResult = loadToPeriphery(peripheral, centralServer);
+                ExchangeResult loadResult = loadToPeriphery(peripheral, centralServer, operationId);
+                ExchangeStateStore.finish(peripheral, loadResult.isSuccess() ? ExchangeStatus.SUCCESS : ExchangeStatus.FAILED,
+                        loadResult.getMessage(), 0, operationId);
                 if (!loadResult.isSuccess()) allSuccess = false;
             } else {
+                ExchangeStateStore.finish(peripheral, ExchangeStatus.FAILED, "Не удалось скопировать файл обмена на периферию", 0, operationId);
                 allSuccess = false;
             }
         }
@@ -499,7 +539,7 @@ public class ExchangeService {
         return allSuccess;
     }
     
-    private static ExchangeResult loadToPeriphery(ServerInfo peripheralServer, ServerInfo centralServer) {
+    private static ExchangeResult loadToPeriphery(ServerInfo peripheralServer, ServerInfo centralServer, String operationId) {
         String subOpId = "DP-" + (System.currentTimeMillis() % 1000);
         AppLogger.pushOperationId(subOpId);
         
@@ -535,6 +575,7 @@ public class ExchangeService {
             String fromSign = centralServer.getDbSign() != null ? centralServer.getDbSign().trim() : "";
             String toSign = peripheralServer.getDbSign() != null ? peripheralServer.getDbSign().trim() : "";
             for (int attempt = 1; attempt <= MAX_RETRIES; attempt++) {
+                ExchangeStateStore.updateAttempt(peripheralServer, attempt, operationId);
                 String logFileName = generateLogFileName(fromSign, toSign);
 
                 String prmContent = createPeripheryLoadPrmContent(logFileName, centralServer.getDbSign().trim());

@@ -22,7 +22,8 @@
 				<columns>
 					<TreeTableColumn fx:id="colName" text="Имя"
 						prefWidth="300" />
-			<TreeTableColumn fx:id="colLast" text="Последний обмен" prefWidth="200"/>
+			<TreeTableColumn fx:id="colLast" text="Последний обмен" prefWidth="160"/>
+                    <TreeTableColumn fx:id="colState" text="Последний этап" prefWidth="360"/>
 				</columns>
 			</TreeTableView>
 
